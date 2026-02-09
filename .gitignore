@@ -41,9 +41,9 @@ ehthumbs.db
 Icon?
 desktop.ini
 
-# Development tools
-.trae/
+# Development ttrae/
 
 # Large dependency folders that are not needed for source code
 apps/demo/node_modules/
 packages/*/node_modules/
+dist/**

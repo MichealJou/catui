@@ -1,8 +1,10 @@
 <template>
   <div class="demo-container">
-    <h1 class="demo-title">Canvas Table 组件演示 (S2)</h1>
+    <h1 class="demo-title">CTable - 高性能表格组件演示</h1>
+
     <p class="demo-description">
-      基于 AntV S2 的高性能 Canvas 表格组件，支持百万级数据渲染和丰富的交互功能。
+      基于 G2 的高性能表格组件，支持百万级数据渲染和丰富的交互功能。<br>
+      兼容 Ant Design Vue / Element Plus / NaiveUI 主题。
     </p>
     
     <!-- 控制面板 -->
@@ -19,53 +21,51 @@
       <button class="control-btn" @click="generateData(100000)">
         生成 100,000 条数据
       </button>
+      <button class="control-btn" @click="generateData(1000000)">
+        生成 1,000,000 条数据
+      </button>
       <button class="control-btn" @click="clearData">
         清空数据
       </button>
-      <button class="control-btn" @click="toggleVirtual">
-        虚拟滚动: {{ virtual ? '开启' : '关闭' }}
-      </button>
       <button class="control-btn" @click="toggleTheme">
-        主题: {{ currentTheme }}
+        主题: {{ getThemeDisplayName(currentTheme) }}
       </button>
-      <button class="control-btn" @click="toggleToolbar">
-        工具栏: {{ showToolbar ? '显示' : '隐藏' }}
+      <button class="control-btn" @click="clearFilters">
+        清除筛选
       </button>
+    </div>
+
+    <!-- 主题说明 -->
+    <div class="theme-info">
+      <span class="theme-label">当前主题:</span>
+      <span class="theme-value">{{ getThemeDisplayName(currentTheme) }}</span>
+      <span class="theme-desc">- {{ getThemeDescription(currentTheme) }}</span>
     </div>
     
     <!-- 表格容器 -->
-    <div class="table-container">
+    <div class="table-container" ref="tableContainerRef">
       <div class="table-title">数据表格 ({{ tableData.length }} 条记录)</div>
-      <S2Table
-        v-if="tableData.length > 0"
-        ref="s2TableRef"
-        :data="tableData"
+
+      <CTable
+        v-if="tableWidth > 0"
+        ref="canvasTableRef"
         :columns="columns"
-        :width="1200"
+        :dataSource="tableData"
+        :width="tableWidth"
         :height="600"
-        :mode="currentMode"
         :theme="currentTheme"
-        :showHeader="showHeader"
-        :showFooter="showFooter"
-        :bordered="bordered"
-        :loading="loading"
-        :virtual="virtual"
-        :interactive="interactive"
-        :toolbar="toolbarConfig"
-        :pagination="pagination"
-        :rowKey="'id'"
-        @row-click="handleRowClick"
+        :virtual-scroll="true"
+        :row-selection="{ type: 'checkbox', selectedRowKeys: selectedKeys }"
         @cell-click="handleCellClick"
+        @row-click="handleRowClick"
         @selection-change="handleSelectionChange"
+        @scroll="handleScroll"
         @sort-change="handleSortChange"
         @filter-change="handleFilterChange"
-        @pagination-change="handlePaginationChange"
-        @scroll="handleScroll"
-        @tool-click="handleToolClick"
-        @data-change="handleDataChange"
       />
-      <div v-else class="empty-state">
-        点击按钮生成测试数据
+
+      <div v-else class="loading-state">
+        正在初始化表格...
       </div>
     </div>
     
@@ -76,16 +76,8 @@
         <span class="info-value">{{ tableData.length }} 条</span>
       </div>
       <div class="info-item">
-        <span class="info-label">表格模式:</span>
-        <span class="info-value">{{ currentMode }}</span>
-      </div>
-      <div class="info-item">
         <span class="info-label">当前主题:</span>
         <span class="info-value">{{ currentTheme }}</span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">虚拟滚动:</span>
-        <span class="info-value">{{ virtual ? '开启' : '关闭' }}</span>
       </div>
       <div class="info-item">
         <span class="info-label">选中行数:</span>
@@ -100,9 +92,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import S2Table from './components/S2Table.vue'
-import type { Column } from './types/s2-table'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { CTable } from '@catui/ctable'
+import type { Column } from '@catui/ctable'
+import type { ThemePreset } from '@catui/ctable'
 
 interface TestData {
   id: number
@@ -122,20 +115,28 @@ const loading = ref(false)
 const lastAction = ref('等待操作')
 
 // 表格配置
-const currentMode = ref<'grid' | 'tree' | 'compact'>('grid')
-const currentTheme = ref<'default' | 'dark' | 'gray'>('default')
-const showHeader = ref(true)
-const showFooter = ref(false)
+const themePresets: ThemePreset[] = [
+  'ant-design',
+  'ant-design-dark',
+  'element-plus',
+  'element-plus-dark',
+  'naive',
+  'naive-dark'
+]
+const currentTheme = ref<ThemePreset>('ant-design')
 const bordered = ref(true)
-const virtual = ref(true)
-const showToolbar = ref(true)
 
 const columns = reactive<Column[]>([
+  {
+    key: '__checkbox__',
+    title: '选择',
+    width: 50,
+    align: 'center'
+  },
   {
     key: 'id',
     title: 'ID',
     width: 80,
-    type: 'data',
     align: 'center',
     sortable: true
   },
@@ -143,98 +144,126 @@ const columns = reactive<Column[]>([
     key: 'name',
     title: '姓名',
     width: 120,
-    type: 'row',
+    align: 'left',
     sortable: true,
-    align: 'left'
+    filterable: true
   },
   {
     key: 'age',
     title: '年龄',
     width: 80,
-    type: 'data',
+    align: 'center',
     sortable: true,
-    align: 'center'
+    filterable: true
   },
   {
     key: 'job',
     title: '职业',
     width: 120,
-    type: 'row',
-    align: 'left'
+    align: 'left',
+    filterable: true
   },
   {
     key: 'address',
     title: '地址',
     width: 200,
-    type: 'row',
     align: 'left'
   },
   {
     key: 'phone',
     title: '电话',
     width: 150,
-    type: 'data',
     align: 'left'
   },
   {
     key: 'salary',
     title: '薪资',
     width: 100,
-    type: 'data',
-    sortable: true,
     align: 'right'
   },
   {
     key: 'date',
     title: '日期',
     width: 120,
-    type: 'data',
     align: 'center'
   }
 ])
 
-// 交互配置
-const interactive = reactive({
-  hoverHighlight: true,
-  selectedCellHighlight: true,
-  rowSelection: true,
-  columnSelection: false,
-  cellEdit: false,
-  dragDrop: false,
-  multiSort: true
-})
-
-// 工具栏配置
-const toolbarConfig = reactive({
-  show: showToolbar.value,
-  tools: ['filter', 'sort', 'export', 'refresh']
-})
-
-// 分页配置
-const pagination = reactive({
-  current: 1,
-  pageSize: 100,
-  total: 0,
-  showSizeChanger: true,
-  showQuickJumper: true,
-  showTotal: true,
-  pageSizeOptions: [10, 20, 50, 100, 500]
-})
-
 // 组件引用
-const s2TableRef = ref()
+const canvasTableRef = ref()
+const tableContainerRef = ref<HTMLDivElement>()
+const tableWidth = ref(0)  // 初始为0，会在 onMounted 中计算
+let resizeObserver: ResizeObserver | null = null
+
+// 监听容器大小变化
+onMounted(() => {
+  if (tableContainerRef.value) {
+    // 初始化宽度
+    updateTableWidth()
+
+    // 设置 ResizeObserver 监听容器大小变化（添加防抖，避免频繁触发）
+    const debouncedUpdateWidth = debounce(() => {
+      const containerWidth = tableContainerRef.value!.clientWidth
+
+      // 计算所有列的总宽度
+      const columnsTotalWidth = columns.reduce((sum, col) => sum + (col.width || 120), 0)
+
+      // 只在宽度真正改变时才更新
+      const newWidth = Math.max(columnsTotalWidth, containerWidth - 2)
+      if (Math.abs(newWidth - tableWidth.value) > 10) {
+        tableWidth.value = newWidth
+      }
+    }, 200)
+
+    resizeObserver = new ResizeObserver(debouncedUpdateWidth)
+    resizeObserver.observe(tableContainerRef.value)
+  }
+
+  // 初始化时生成 1000 条数据
+  generateData(1000)
+})
+
+onBeforeUnmount(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
+})
+
+const updateTableWidth = () => {
+  if (tableContainerRef.value) {
+    const containerWidth = tableContainerRef.value.clientWidth
+
+    // 计算所有列的总宽度
+    const columnsTotalWidth = columns.reduce((sum, col) => sum + (col.width || 120), 0)
+
+    // 表格宽度 = Math.max(容器宽度, 列总宽度)
+    // 这样可以确保：
+    // 1. 当容器宽度 > 列总宽度时，表格扩展以填充容器（最后一列自动扩展）
+    // 2. 当容器宽度 < 列总宽度时，表格保持列总宽度，出现横向滚动条
+    tableWidth.value = Math.max(columnsTotalWidth, containerWidth - 2)
+  }
+}
+
+// 防抖函数
+const debounce = <T extends (...args: any[]) => any>(fn: T, delay: number): T => {
+  let timeoutId: ReturnType<typeof setTimeout>
+  return ((...args: any[]) => {
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => fn(...args), delay)
+  }) as T
+}
 
 // 生成测试数据
 const generateData = (count: number) => {
   loading.value = true
   lastAction.value = `生成 ${count} 条数据`
-  
-  setTimeout(() => {
-    const jobs = ['工程师', '设计师', '产品经理', '运营', '销售', '市场', '财务', '人事']
-    const cities = ['北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '西安']
-    
+
+  const jobs = ['工程师', '设计师', '产品经理', '运营', '销售', '市场', '财务', '人事']
+  const cities = ['北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '西安']
+
+  // 小于等于 10000 条数据使用同步生成
+  if (count <= 10000) {
     const data: TestData[] = []
-    
     for (let i = 1; i <= count; i++) {
       data.push({
         id: i,
@@ -247,12 +276,48 @@ const generateData = (count: number) => {
         date: new Date(2024, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toLocaleDateString()
       })
     }
-    
     tableData.value = data
-    pagination.total = count
-    pagination.current = 1
     loading.value = false
-  }, 100)
+    console.log(`生成了 ${count} 条数据`)
+  } else {
+    // 大数据量使用分批生成避免阻塞 UI
+    setTimeout(() => {
+      const batchSize = 10000
+      const data: TestData[] = []
+      let currentBatch = 0
+      const totalBatches = Math.ceil(count / batchSize)
+
+      const generateBatch = () => {
+        const start = currentBatch * batchSize
+        const end = Math.min(start + batchSize, count)
+
+        for (let i = start + 1; i <= end; i++) {
+          data.push({
+            id: i,
+            name: `用户 ${i}`,
+            age: 20 + Math.floor(Math.random() * 40),
+            address: `${cities[Math.floor(Math.random() * cities.length)]}市第${i}大街`,
+            phone: `138${String(Math.floor(Math.random() * 100000000)).padStart(8, '0')}`,
+            job: jobs[Math.floor(Math.random() * jobs.length)],
+            salary: 5000 + Math.floor(Math.random() * 50000),
+            date: new Date(2024, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toLocaleDateString()
+          })
+        }
+
+        currentBatch++
+
+        if (currentBatch < totalBatches) {
+          requestAnimationFrame(generateBatch)
+        } else {
+          tableData.value = data
+          loading.value = false
+          console.log(`生成了 ${count} 条数据`)
+        }
+      }
+
+      generateBatch()
+    }, 100)
+  }
 }
 
 // 清空数据
@@ -262,26 +327,38 @@ const clearData = () => {
   lastAction.value = '清空数据'
 }
 
-// 切换虚拟滚动
-const toggleVirtual = () => {
-  virtual.value = !virtual.value
-  lastAction.value = `切换虚拟滚动为 ${virtual.value ? '开启' : '关闭'}`
-}
-
-// 切换主题
+// 切换主题（循环切换所有预设）
 const toggleTheme = () => {
-  const themes: Array<'default' | 'dark' | 'gray'> = ['default', 'dark', 'gray']
-  const currentIndex = themes.indexOf(currentTheme.value)
-  const nextIndex = (currentIndex + 1) % themes.length
-  currentTheme.value = themes[nextIndex]
-  lastAction.value = `切换主题为 ${currentTheme.value}`
+  const currentIndex = themePresets.indexOf(currentTheme.value)
+  const nextIndex = (currentIndex + 1) % themePresets.length
+  currentTheme.value = themePresets[nextIndex]
+  lastAction.value = `切换主题为 ${getThemeDisplayName(currentTheme.value)}`
 }
 
-// 切换工具栏
-const toggleToolbar = () => {
-  showToolbar.value = !showToolbar.value
-  toolbarConfig.show = showToolbar.value
-  lastAction.value = `切换工具栏为 ${showToolbar.value ? '显示' : '隐藏'}`
+// 获取主题显示名称
+const getThemeDisplayName = (theme: ThemePreset): string => {
+  const names: Record<ThemePreset, string> = {
+    'ant-design': 'Ant Design',
+    'ant-design-dark': 'Ant Design (暗黑)',
+    'element-plus': 'Element Plus',
+    'element-plus-dark': 'Element Plus (暗黑)',
+    'naive': 'NaiveUI',
+    'naive-dark': 'NaiveUI (暗黑)'
+  }
+  return names[theme] || theme
+}
+
+// 获取主题描述
+const getThemeDescription = (theme: ThemePreset): string => {
+  const descriptions: Record<ThemePreset, string> = {
+    'ant-design': 'Ant Design Vue 默认主题',
+    'ant-design-dark': 'Ant Design Vue 暗黑主题',
+    'element-plus': 'Element Plus 默认主题',
+    'element-plus-dark': 'Element Plus 暗黑主题',
+    'naive': 'NaiveUI 默认主题',
+    'naive-dark': 'NaiveUI 暗黑主题'
+  }
+  return descriptions[theme] || ''
 }
 
 // 事件处理
@@ -301,38 +378,27 @@ const handleSelectionChange = (selectedRows: TestData[], keys: string[]) => {
   console.log('选择变化:', selectedRows, keys)
 }
 
-const handleSortChange = (sortInfo: any) => {
-  lastAction.value = `排序变化: ${JSON.stringify(sortInfo)}`
-  console.log('排序变化:', sortInfo)
-}
-
-const handleFilterChange = (filterInfo: any) => {
-  lastAction.value = `筛选变化: ${JSON.stringify(filterInfo)}`
-  console.log('筛选变化:', filterInfo)
-}
-
-const handlePaginationChange = (pageInfo: any) => {
-  pagination.current = pageInfo.current
-  pagination.pageSize = pageInfo.pageSize
-  lastAction.value = `分页变化: 第 ${pageInfo.current} 页，每页 ${pageInfo.pageSize} 条`
-  console.log('分页变化:', pageInfo)
-}
-
 const handleScroll = (scrollTop: number, scrollLeft: number) => {
   console.log('滚动:', scrollTop, scrollLeft)
 }
 
-const handleToolClick = (tool: string, event: MouseEvent) => {
-  lastAction.value = `工具栏点击: ${tool}`
-  console.log('工具栏点击:', tool, event)
+const handleSortChange = (field: string, order: any) => {
+  const orderText = order === 'asc' ? '升序' : order === 'desc' ? '降序' : '无'
+  lastAction.value = `排序字段: ${field}, 顺序: ${orderText}`
+  console.log('排序变化:', field, order)
 }
 
-const handleDataChange = (data: any[]) => {
-  tableData.value = data
+const handleFilterChange = (filters: any[]) => {
+  lastAction.value = `筛选条件: ${filters.length} 个`
+  console.log('筛选变化:', filters)
 }
 
-// 初始化
-generateData(100)
+const clearFilters = () => {
+  if (canvasTableRef.value) {
+    canvasTableRef.value.clearFilters()
+    lastAction.value = '清除所有筛选'
+  }
+}
 </script>
 
 <style scoped>
@@ -363,7 +429,9 @@ generateData(100)
   margin-bottom: 20px;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
 }
 
 .table-title {
@@ -400,6 +468,32 @@ generateData(100)
   background: #096dd9;
 }
 
+.theme-info {
+  background: #e6f4ff;
+  border: 1px solid #91caff;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.theme-label {
+  font-weight: 600;
+  color: #1677ff;
+}
+
+.theme-value {
+  font-weight: 600;
+  color: #1677ff;
+}
+
+.theme-desc {
+  color: #666;
+}
+
 .info-panel {
   background: #f9f9f9;
   border: 1px solid #e0e0e0;
@@ -432,6 +526,16 @@ generateData(100)
   font-size: 16px;
   background: #fafafa;
   border: 1px dashed #d9d9d9;
+  border-radius: 4px;
+}
+
+.loading-state {
+  padding: 40px;
+  text-align: center;
+  color: #1677ff;
+  font-size: 16px;
+  background: #f0f5ff;
+  border: 1px dashed #91caff;
   border-radius: 4px;
 }
 </style>

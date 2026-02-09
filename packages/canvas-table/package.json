@@ -25,6 +25,9 @@
   "peerDependencies": {
     "vue": "^3.3.0"
   },
+  "dependencies": {
+    "@antv/g2": "^5.2.1"
+  },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.0",
     "@rollup/plugin-node-resolve": "^15.0.0",
