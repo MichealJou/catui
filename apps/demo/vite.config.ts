@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
+      '@': resolve(__dirname, 'src'),
+      '@catui/ctable': resolve(__dirname, '../../packages/ctable/src')
     }
   },
   css: {

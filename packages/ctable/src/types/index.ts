@@ -101,6 +101,7 @@ export interface Column {
   // === 排序 ===
   sorter?: boolean | ((a: any, b: any) => number) | SorterConfig
   sortOrder?: SortOrder | SortDirection
+  sortable?: boolean  // CTable 扩展属性：是否可排序
 
   // === 筛选 ===
   filters?: FilterOption[]
@@ -109,7 +110,7 @@ export interface Column {
   onFilter?: (value: any, record: any) => boolean
   filteredValue?: any[]
   filterMultiple?: boolean
-  filterable?: boolean  // CTable 扩展属性
+  filterable?: boolean  // CTable 扩展属性：是否可筛选
 
   // === 自定义渲染 ===
   customRender?: ({ value, record, index, column }: any) => any
@@ -219,6 +220,8 @@ export interface CTableProps {
 
   // === 选择属性 ===
   rowSelection?: RowSelectionConfig
+  selectable?: boolean  // CTable 扩展：是否可选择行
+  selectableType?: 'single' | 'multiple'  // CTable 扩展：选择类型
 
   // === 展开行属性 ===
   expandedRowKeys?: any[]

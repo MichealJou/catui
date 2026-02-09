@@ -10,18 +10,6 @@
       :width="width"
       :height="height"
     />
-    <!-- 图标层 -->
-    <div class="ctable-icons" :style="iconsStyle">
-      <div
-        v-for="icon in headerIcons"
-        :key="icon.key"
-        class="ctable-icon"
-        :style="{ left: `${icon.x}px`, top: `${icon.y}px` }"
-        @click.stop="handleIconClick(icon)"
-      >
-        <Icon :icon="icon.name" :width="16" :height="16" />
-      </div>
-    </div>
     <!-- 纵向滚动条 -->
     <div
       v-if="showScrollbar"
@@ -59,7 +47,6 @@ import {
   nextTick,
   type CSSProperties,
 } from "vue";
-import { Icon } from '@iconify/vue'
 import type { CTableProps, Column, SortOrder, FilterCondition, ThemePreset } from "../types";
 import { G2TableRenderer } from "../core/G2TableRenderer";
 import { useVirtualScroll } from "../core/VirtualScroll";
@@ -83,7 +70,7 @@ const props = withDefaults(defineProps<CTableProps>(), {
 const emit = defineEmits<{
   "cell-click": [event: any];
   "row-click": [event: any];
-  "selection-change": [selection: any[]];
+  "selection-change": [selectedRows: any[], selectedKeys: any[]];
   scroll: [event: any];
   "sort-change": [field: string, order: SortOrder];
   "filter-change": [filters: FilterCondition[]];
@@ -125,91 +112,18 @@ const hScrollbarDragStartScrollLeft = ref(0);
 // 兼容 dataSource 和 data 两种属性名
 const tableData = computed(() => props.data || props.dataSource || []);
 
-// 图标相关
-interface HeaderIcon {
-  key: string;
-  name: string;
-  x: number;
-  y: number;
-  column?: Column;
-  type: 'sort' | 'filter';
-}
+// 辅助函数：获取列宽（转为数字）
+const getColumnWidth = (col: Column): number => {
+  const width = col.width || 120;
+  return typeof width === 'number' ? width : parseInt(width) || 120;
+};
 
-const headerIcons = computed<HeaderIcon[]>(() => {
-  const icons: HeaderIcon[] = [];
-  const columns = props.columns || [];
-  const theme = getTheme();
-
-  let currentX = 0;
-  columns.forEach((col, colIndex) => {
-    const colWidth = col.width || 120;
-
-    // 最后一列可能自动扩展
-    let actualWidth = colWidth;
-    if (colIndex === columns.length - 1) {
-      const totalWidth = columns.reduce((sum, c) => sum + (c.width || 120), 0);
-      if (totalWidth < props.width) {
-        actualWidth = props.width - currentX;
-      }
-    }
-
-    // 添加排序图标
-    if (col.sortable) {
-      const sortOrder = sortManager.getSortState(col.key);
-      let iconName = 'mdi:sort';
-      if (sortOrder === 'asc') iconName = 'mdi:sort-ascending';
-      else if (sortOrder === 'desc') iconName = 'mdi:sort-descending';
-
-      icons.push({
-        key: `sort-${col.key}`,
-        name: iconName,
-        x: currentX + actualWidth - 36,
-        y: theme.spacing.header / 2,
-        column: col,
-        type: 'sort'
-      });
-    }
-
-    // 添加筛选图标
-    if (col.filterable) {
-      const offset = col.sortable ? 20 : 0;
-      const hasFilter = filterManager.getActiveFilters(col.key).length > 0;
-      const iconName = hasFilter ? 'mdi:filter' : 'mdi:filter-outline';
-
-      icons.push({
-        key: `filter-${col.key}`,
-        name: iconName,
-        x: currentX + actualWidth - 20 - offset,
-        y: theme.spacing.header / 2,
-        column: col,
-        type: 'filter'
-      });
-    }
-
-    currentX += colWidth;
-  });
-
-  return icons;
-});
-
-const iconsStyle = computed<CSSProperties>(() => ({
-  position: 'absolute' as 'absolute',
-  top: '0px',
-  left: '0px',
-  width: `${props.width}px`,
-  height: `${getTheme().spacing.header}px`,
-  pointerEvents: 'none' as 'none',
-}));
-
-const handleIconClick = (icon: HeaderIcon) => {
-  if (!icon.column) return;
-
-  if (icon.type === 'sort' && icon.column.sortable) {
-    handleSort(icon.column);
-  } else if (icon.type === 'filter' && icon.column.filterable) {
-    // TODO: 打开筛选菜单
-    console.log('Filter clicked:', icon.column.key);
+// 辅助函数：获取行键值
+const getRowKey = (row: any): string => {
+  if (typeof props.rowKey === 'function') {
+    return props.rowKey(row);
   }
+  return String(row[props.rowKey || 'id']);
 };
 
 const containerStyle = computed<CSSProperties>(() => ({
@@ -358,7 +272,6 @@ const initTable = async () => {
   }
 
   const theme = getTheme();
-  const cellHeight = theme.spacing.cell || 55;
   const headerHeight = theme.spacing.header || 55;
 
   // 先保存数据引用
@@ -407,16 +320,120 @@ const handleClick = (event: MouseEvent) => {
 
   const cell = hitTest(x, y);
 
-  // 处理表头点击（排序）
+  // 处理表头点击（排序/筛选/复选框）
   if (cell && cell.type === "header" && cell.colIndex !== undefined) {
     const column = props.columns[cell.colIndex];
-    if (column && column.sortable) {
-      handleSort(column);
+    if (column) {
+      const theme = getTheme();
+
+      // 检查是否是复选框列
+      if (column.key === '__checkbox__') {
+        // 处理全选/取消全选
+        const data = sortedData.value || [];
+        if (selectedRows.value.length === data.length && data.length > 0) {
+          // 全部选中 -> 取消全选
+          selectedRows.value = [];
+        } else {
+          // 全选
+          selectedRows.value = [...data];
+        }
+        emit("selection-change", selectedRows.value, []);
+        return;
+      }
+
+      const hasSort = column.sortable || (typeof column.sorter === 'boolean' && column.sorter);
+      const hasFilter = column.filterable;
+
+      // 检测点击的是哪个图标
+      if (hasSort || hasFilter) {
+        const iconPadding = 8;
+        const iconGap = 4;
+        const sortIconWidth = hasSort ? 12 : 0;
+        const filterIconWidth = hasFilter ? 14 : 0;
+
+        // 计算当前列的 x 位置
+        let colX = 0;
+        for (let i = 0; i < cell.colIndex; i++) {
+          const w = props.columns[i].width || 120;
+          colX += typeof w === 'number' ? w : parseInt(w) || 120;
+        }
+
+        // 最后一列可能自动扩展
+        let colWidth = column.width || 120;
+        colWidth = typeof colWidth === 'number' ? colWidth : parseInt(colWidth) || 120;
+
+        const totalWidth = props.columns.reduce((sum, c) => {
+          const w = c.width || 120;
+          return sum + (typeof w === 'number' ? w : parseInt(w) || 120);
+        }, 0);
+
+        if (cell.colIndex === props.columns.length - 1 && totalWidth < props.width) {
+          colWidth = props.width - colX;
+        }
+
+        // 图标区域（从右向左）
+        const headerHeight = theme.spacing.header;
+        let currentIconX = colX + colWidth - iconPadding;
+
+        // 检查筛选图标点击
+        if (hasFilter) {
+          const iconLeft = currentIconX - filterIconWidth;
+          const iconRight = currentIconX;
+          if (x >= iconLeft && x <= iconRight &&
+              y >= headerHeight / 2 - filterIconWidth / 2 &&
+              y <= headerHeight / 2 + filterIconWidth / 2) {
+            handleFilter(column);
+            return;
+          }
+          currentIconX -= filterIconWidth + iconGap;
+        }
+
+        // 检查排序图标点击
+        if (hasSort) {
+          const iconLeft = currentIconX - sortIconWidth;
+          const iconRight = currentIconX;
+          if (x >= iconLeft && x <= iconRight &&
+              y >= headerHeight / 2 - sortIconWidth / 2 &&
+              y <= headerHeight / 2 + sortIconWidth / 2) {
+            handleSort(column);
+            return;
+          }
+        }
+      }
     }
     return;
   }
 
   if (cell && cell.row !== undefined && cell.type === "cell") {
+    // 检查是否点击了复选框列
+    if (cell.column && cell.column.key === '__checkbox__') {
+      // 切换该行的选择状态
+      if (props.selectableType === "single") {
+        const rowData = sortedData.value[cell.row];
+        if (selectedRows.value.length === 1 && selectedRows.value[0] === rowData) {
+          selectedRows.value = [];
+        } else {
+          selectedRows.value = [rowData];
+        }
+      } else {
+        const rowData = sortedData.value[cell.row];
+        const index = selectedRows.value.findIndex(
+          (row) => getRowKey(row) === getRowKey(rowData)
+        );
+
+        if (index !== -1) {
+          selectedRows.value.splice(index, 1);
+        } else {
+          selectedRows.value.push(rowData);
+        }
+      }
+
+      // 手动触发 selection-change 事件
+      const keys = selectedRows.value.map(row => getRowKey(row));
+      emit("selection-change", selectedRows.value, keys);
+      return;
+    }
+
     emit("cell-click", { cell, originalEvent: event });
     emit("row-click", { row: cell.row, data: sortedData.value[cell.row] });
 
@@ -427,7 +444,7 @@ const handleClick = (event: MouseEvent) => {
       } else {
         const rowData = sortedData.value[cell.row];
         const index = selectedRows.value.findIndex(
-          (row) => row[props.rowKey] === rowData[props.rowKey]
+          (row) => getRowKey(row) === getRowKey(rowData)
         );
 
         if (index !== -1) {
@@ -437,7 +454,8 @@ const handleClick = (event: MouseEvent) => {
         }
       }
 
-      emit("selection-change", selectedRows.value);
+      const keys = selectedRows.value.map(row => getRowKey(row));
+      emit("selection-change", selectedRows.value, keys);
     }
   }
 };
@@ -451,6 +469,76 @@ const handleMouseMove = (event: MouseEvent) => {
 
   const cell = hitTest(x, y);
 
+  // 检测是否悬停在表头图标上
+  let hoveringIcon = false;
+  if (cell && cell.type === "header" && cell.colIndex !== undefined) {
+    const column = props.columns[cell.colIndex];
+    if (column) {
+      const theme = getTheme();
+      const hasSort = column.sortable || (typeof column.sorter === 'boolean' && column.sorter);
+      const hasFilter = column.filterable;
+
+      // 图标区域检测
+      if (hasSort || hasFilter) {
+        const iconPadding = 8;
+        const iconGap = 4;
+        const sortIconWidth = hasSort ? 12 : 0;
+        const filterIconWidth = hasFilter ? 14 : 0;
+
+        // 计算当前列的 x 位置
+        let colX = 0;
+        for (let i = 0; i < cell.colIndex; i++) {
+          const w = props.columns[i].width || 120;
+          colX += typeof w === 'number' ? w : parseInt(w) || 120;
+        }
+
+        // 最后一列可能自动扩展
+        let colWidth = column.width || 120;
+        colWidth = typeof colWidth === 'number' ? colWidth : parseInt(colWidth) || 120;
+
+        const totalWidth = props.columns.reduce((sum, c) => {
+          const w = c.width || 120;
+          return sum + (typeof w === 'number' ? w : parseInt(w) || 120);
+        }, 0);
+
+        if (cell.colIndex === props.columns.length - 1 && totalWidth < props.width) {
+          colWidth = props.width - colX;
+        }
+
+        // 图标区域（从右向左）
+        const headerHeight = theme.spacing.header;
+        let currentIconX = colX + colWidth - iconPadding;
+
+        // 检查筛选图标
+        if (hasFilter) {
+          const iconLeft = currentIconX - filterIconWidth;
+          const iconRight = currentIconX;
+          if (x >= iconLeft && x <= iconRight &&
+              y >= headerHeight / 2 - filterIconWidth / 2 &&
+              y <= headerHeight / 2 + filterIconWidth / 2) {
+            hoveringIcon = true;
+          }
+          currentIconX -= filterIconWidth + iconGap;
+        }
+
+        // 检查排序图标
+        if (!hoveringIcon && hasSort) {
+          const iconLeft = currentIconX - sortIconWidth;
+          const iconRight = currentIconX;
+          if (x >= iconLeft && x <= iconRight &&
+              y >= headerHeight / 2 - sortIconWidth / 2 &&
+              y <= headerHeight / 2 + sortIconWidth / 2) {
+            hoveringIcon = true;
+          }
+        }
+      }
+    }
+  }
+
+  // 设置鼠标样式
+  if (canvasRef.value) {
+    canvasRef.value.style.cursor = hoveringIcon ? 'pointer' : 'default';
+  }
 
   if (cell && cell.row !== undefined && cell.col !== undefined) {
     hoveredCell.value = cell;
@@ -467,7 +555,15 @@ const handleMouseLeave = () => {
 };
 
 const handleSort = (column: Column) => {
-  const newOrder = sortManager.toggleSort(column.key, column.sorter);
+  // 处理 sorter 类型
+  let sorterFn: ((a: any, b: any) => number) | undefined;
+  if (typeof column.sorter === 'function') {
+    sorterFn = column.sorter;
+  } else if (column.sorter && typeof column.sorter === 'object' && 'compare' in column.sorter) {
+    sorterFn = column.sorter.compare;
+  }
+
+  const newOrder = sortManager.toggleSort(column.key, sorterFn);
 
   // 更新渲染器的排序状态（用于显示排序图标）
   if (renderer.value) {
@@ -596,12 +692,12 @@ const hitTest = (x: number, y: number) => {
   if (y < headerHeight) {
     let currentX = 0;
     for (let i = 0; i < columns.length; i++) {
-      const colWidth = columns[i].width || 120;
+      const colWidth = getColumnWidth(columns[i]);
 
       // 最后一列可能自动扩展
       let actualWidth = colWidth;
       if (i === columns.length - 1) {
-        const totalWidth = columns.reduce((sum, col) => sum + (col.width || 120), 0);
+        const totalWidth = columns.reduce((sum, col) => sum + getColumnWidth(col), 0);
         if (totalWidth < props.width) {
           actualWidth = props.width - currentX;
         }
@@ -629,12 +725,12 @@ const hitTest = (x: number, y: number) => {
 
   let currentX = 0;
   for (let i = 0; i < columns.length; i++) {
-    const colWidth = columns[i].width || 120;
+    const colWidth = getColumnWidth(columns[i]);
 
     // 最后一列可能自动扩展
     let actualWidth = colWidth;
     if (i === columns.length - 1) {
-      const totalWidth = columns.reduce((sum, col) => sum + (col.width || 120), 0);
+      const totalWidth = columns.reduce((sum, col) => sum + getColumnWidth(col), 0);
       if (totalWidth < props.width) {
         actualWidth = props.width - currentX;
       }
@@ -790,7 +886,7 @@ defineExpose({
   clearSelection: () => {
     selectedRows.value = [];
     renderer.value?.clearSelection();
-    emit("selection-change", []);
+    emit("selection-change", [], []);
   },
   clearFilters: () => {
     filterManager.clearAll();
@@ -814,26 +910,6 @@ defineExpose({
 
 .ctable-canvas {
   display: block;
-}
-
-.ctable-icons {
-  pointer-events: none;
-}
-
-.ctable-icon {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  cursor: pointer;
-  pointer-events: auto;
-  color: rgba(0, 0, 0, 0.45);
-  transition: color 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ctable-icon:hover {
-  color: rgba(0, 0, 0, 0.88);
 }
 
 .ctable-scrollbar {
