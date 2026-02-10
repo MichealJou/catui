@@ -2,17 +2,25 @@
 	"scripts": {
 		"dev": "pnpm -r --parallel dev",
 		"dev:demo": "pnpm --filter @catui/demo dev",
-		"dev:canvas-table": "pnpm --filter @catui/canvas-table dev",
 		"build": "pnpm -r build",
-		"build:canvas-table": "pnpm --filter @catui/canvas-table build",
 		"build:demo": "pnpm --filter @catui/demo build",
-		"build:all": "pnpm build:canvas-table && pnpm build:demo",
+		"build:all": "pnpm build:demo",
 		"preview": "pnpm --filter @catui/demo preview",
 		"lint": "pnpm -r lint",
-		"type-check": "pnpm --filter @catui/canvas-table type-check",
-		"clean": "pnpm --filter @catui/canvas-table clean"
+		"type-check": "pnpm --filter @catui/ctable type-check",
+		"clean": "pnpm --filter @catui/ctable clean"
 	},
 	"dependencies": {
 		"@iconify/vue": "^5.0.0"
+	},
+	"devDependencies": {
+		"@types/node": "^20.0.0",
+		"@typescript-eslint/eslint-plugin": "^8.55.0",
+		"@typescript-eslint/parser": "^8.55.0",
+		"@vue/eslint-config-prettier": "^10.2.0",
+		"@vue/eslint-config-typescript": "^14.6.0",
+		"eslint": "^9.39.2",
+		"eslint-config-prettier": "^10.1.8",
+		"eslint-plugin-vue": "^9.33.0"
 	}
 }

@@ -216,81 +216,10 @@ export class G2TableRendererV2 {
     const headerHeight = spacing.header
     const cellHeight = spacing.cell
 
-    // 1. 生成表头单元格
-    this.columns.forEach((col, colIndex) => {
-      const x = this.getColumnX(colIndex) - this.scrollLeft
-      let width = typeof col.width === 'number' ? col.width : 120
+    // 表头使用 HTML 渲染，跳过表头单元格生成
+    // 直接生成数据行
 
-      // 跳过完全在可视区域外的列
-      if (x + width <= 0 || x >= this.width) {
-        return
-      }
-
-      // 最后一列自适应宽度
-      let originalTotalWidth = 0
-      for (const c of this.columns) {
-        const cWidth = typeof c.width === 'number' ? c.width : 120
-        originalTotalWidth += cWidth
-      }
-      if (colIndex === this.columns.length - 1 && originalTotalWidth < this.width) {
-        width = this.width - (this.getColumnX(colIndex) - this.scrollLeft)
-      }
-
-      const visibleWidth = Math.min(width, this.width - x)
-
-      // 表头单元格数据
-      g2Data.push({
-        rowIndex: -1,  // -1 表示表头
-        colIndex,
-        x,
-        y: 0,
-        width: visibleWidth,
-        height: headerHeight,
-        text: col.title,
-        fill: colors.header,
-        stroke: colors.border,
-        lineWidth: 1,
-        fontSize: parseInt(fonts.header.size, 10),
-        fontFamily: 'PingFang SC, "Microsoft YaHei", sans-serif',
-        fontWeight: fonts.header.weight === 'bold' ? 700 : 400,
-        textAlign: col.align || 'left',
-        textBaseline: 'middle' as const,
-        textColor: colors.text,
-        isHeader: true,
-        isCheckbox: col.key === '__checkbox__',
-        isChecked: false,  // 表头复选框状态后续计算
-        hasSortIcon: col.sortable || false,
-        sortIconX: 0,
-        sortIconY: headerHeight / 2,
-        sortOrder: this.sortState.get(col.key),
-        hasFilterIcon: col.filterable || false,
-        filterIconX: 0,
-        filterIconY: headerHeight / 2,
-        isFilterActive: this.filterState.has(col.key),
-        hasExpandIcon: false,
-        expandIconX: 0,
-        expandIconY: 0,
-        isExpanded: false,
-        treeIndent: 0
-      })
-
-      // 计算图标位置（从右向左排列）
-      let iconX = x + visibleWidth - 8
-      const iconGap = 4
-      const filterIconWidth = 14
-      const sortIconWidth = 12
-
-      if (col.filterable) {
-        g2Data[g2Data.length - 1].filterIconX = iconX - filterIconWidth / 2
-        iconX -= filterIconWidth + iconGap
-      }
-
-      if (col.sortable) {
-        g2Data[g2Data.length - 1].sortIconX = iconX - sortIconWidth / 2
-      }
-    })
-
-    // 2. 生成数据单元格
+    // 生成数据单元格
     // 计算滚动偏移量：scrollTop 可能不在单元格边界上
     const scrollOffset = this.lastScrollTop % cellHeight
 
@@ -307,23 +236,19 @@ export class G2TableRendererV2 {
       const relativeOffset = localRowIndex - firstVisibleRowOffset
 
       // 计算 Y 坐标：从表头下方开始，加上相对偏移，减去滚动偏移
-      const y = headerHeight + relativeOffset * cellHeight - scrollOffset
+      // 调整：让第一行从 headerHeight 开始，实现平滑滚动
+      const y = headerHeight - scrollOffset + relativeOffset * cellHeight
 
-      // 如果行超出底部，跳过
-      if (y >= this.height) return
-
-      // 如果行完全在表头下方（被表头遮挡），跳过
+      // 跳过完全在表头上方的行
       if (y + cellHeight <= headerHeight) return
 
-      // 计算实际绘制的 Y 坐标和高度
-      let actualY = y
-      let actualHeight = cellHeight
+      // 跳过完全超出底部的行
+      if (y >= this.height) return
 
-      if (y < headerHeight) {
-        // 行被表头遮挡，从 headerHeight 开始绘制
-        actualY = headerHeight
-        actualHeight = cellHeight - (headerHeight - y)
-      }
+      // 处理部分在表头内的行：保持完整高度，让行平滑滚动
+      // Canvas 会自动裁剪表头区域外的内容
+      const actualY = y
+      const actualHeight = cellHeight
 
       const isStripe = colors.stripe && actualRowIndex % 2 === 1
 

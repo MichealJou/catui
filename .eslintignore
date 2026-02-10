@@ -1,0 +1,27 @@
+# 依赖
+node_modules
+dist
+build
+
+# 配置文件
+*.config.js
+*.config.ts
+vite.config.ts
+
+# 构建工具
+.pnpm-store
+
+# 文档
+doc
+docs
+
+# 测试覆盖率
+coverage
+
+# 缓存
+*.tsbuildinfo
+.cache
+
+# 其他
+.DS_Store
+*.min.js

@@ -15,11 +15,132 @@
       :size="'default'"
     />
 
+    <!-- HTML 表头 -->
+    <div v-if="columns.length" ref="headerRef" class="ctable-header" :style="headerStyle">
+      <div
+        v-for="(col, index) in columns"
+        :key="col.key || index"
+        class="ctable-header-cell"
+        :style="getHeaderCellStyle(col, index)"
+        @click="handleHeaderClick(col, index)"
+      >
+        <div class="ctable-header-cell-content">
+          <!-- 复选框列 -->
+          <template v-if="col.key === '__checkbox__'">
+            <input
+              type="checkbox"
+              :checked="isAllSelected"
+              :indeterminate="isSomeSelected"
+              @change="handleSelectAll"
+              @click.stop
+            />
+          </template>
+          <!-- 其他列 -->
+          <template v-else>
+            <span class="ctable-header-title">{{ col.title }}</span>
+            <!-- 排序图标 -->
+            <span v-if="col.sorter" class="ctable-header-sort">
+              <span
+                v-if="getColumnSort(col.key) === 'ascend'"
+                class="ctable-sort-icon ctable-sort-ascend"
+              >
+                ▲
+              </span>
+              <span
+                v-else
+                class="ctable-sort-icon"
+              >
+                ▲
+              </span>
+              <span
+                v-if="getColumnSort(col.key) === 'descend'"
+                class="ctable-sort-icon ctable-sort-descend"
+              >
+                ▼
+              </span>
+              <span
+                v-else
+                class="ctable-sort-icon"
+              >
+                ▼
+              </span>
+            </span>
+            <!-- 筛选图标 -->
+            <span v-if="col.filters && col.filters.length" class="ctable-header-filter">
+              <span
+                :class="['ctable-filter-icon', { 'ctable-filter-active': localFilterState.value.has(col.key) }]"
+              >
+                ⚷
+              </span>
+            </span>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- 单元格 hover 高亮（四条边框） -->
+    <template v-if="cellHover.visible && !cellSelection.visible">
+      <!-- 上边框 -->
+      <div
+        class="ctable-hover-border-top"
+        :style="cellHoverBorders.top"
+      ></div>
+
+      <!-- 下边框 -->
+      <div
+        class="ctable-hover-border-bottom"
+        :style="cellHoverBorders.bottom"
+      ></div>
+
+      <!-- 左边框 -->
+      <div
+        class="ctable-hover-border-left"
+        :style="cellHoverBorders.left"
+      ></div>
+
+      <!-- 右边框 -->
+      <div
+        class="ctable-hover-border-right"
+        :style="cellHoverBorders.right"
+      ></div>
+    </template>
+
+    <!-- 单元格选中区域（四条边） -->
+    <template v-if="cellSelection.visible">
+      <!-- 上边框 -->
+      <div
+        class="ctable-selection-border-top"
+        :style="cellSelectionBorders.top"
+      ></div>
+
+      <!-- 下边框 -->
+      <div
+        class="ctable-selection-border-bottom"
+        :style="cellSelectionBorders.bottom"
+      ></div>
+
+      <!-- 左边框 -->
+      <div
+        class="ctable-selection-border-left"
+        :style="cellSelectionBorders.left"
+      ></div>
+
+      <!-- 右边框 -->
+      <div
+        class="ctable-selection-border-right"
+        :style="cellSelectionBorders.right"
+      ></div>
+    </template>
+
     <canvas
       ref="canvasRef"
       class="ctable-canvas"
       :width="width"
       :height="height"
+      @mousedown="handleCellMouseDown"
+      @mousemove="handleCellMouseMove"
+      @mouseup="handleCellMouseUp"
+      @mouseleave="handleCellMouseLeave"
     />
     <!-- 分页器容器 -->
     <div v-if="effectivePagination" ref="paginationRef" class="ctable-pagination-wrapper">
@@ -199,6 +320,24 @@ const effectivePagination = computed(() => {
 
 const selectedRows = ref<any[]>([]);
 const hoveredCell = ref<any>(null);
+
+// 单元格选中状态（Excel 风格）
+const cellSelection = ref({
+  visible: false,
+  startRow: 0,
+  startCol: 0,
+  endRow: 0,
+  endCol: 0,
+});
+
+const cellSelecting = ref(false);
+
+// 单元格 hover 状态
+const cellHover = ref({
+  visible: false,
+  row: 0,
+  col: 0,
+});
 
 // 滚动条相关状态
 const scrollbarDragging = ref(false);
@@ -391,6 +530,472 @@ const containerStyle = computed<CSSProperties>(() => ({
   overflow: "hidden" as "hidden",
   backgroundColor: getTheme().colors.background,
 }));
+
+// 表头相关
+const headerRef = ref<HTMLElement | null>(null);
+
+// 排序和筛选状态
+const localSortState = ref<Map<string, "ascend" | "descend">>(new Map());
+const localFilterState = ref<Map<string, any[]>>(new Map());
+
+const headerStyle = computed<CSSProperties>(() => {
+  const theme = getTheme();
+  return {
+    position: "absolute" as "absolute",
+    top: "0",
+    left: "0",
+    right: "0",
+    height: `${theme.spacing.header}px`,
+    backgroundColor: "#fafafa",
+    // 表头外边框，颜色与 ant-design-vue table 一致
+    borderTop: `1px solid #f0f0f0`,
+    borderLeft: `1px solid #f0f0f0`,
+    borderRight: `1px solid #f0f0f0`,
+    borderBottom: `1px solid #f0f0f0`,
+    display: "flex",
+    alignItems: "center",
+    zIndex: 100,
+    overflow: "hidden" as "hidden",
+  };
+});
+
+const getHeaderCellStyle = (col: any, index: number) => {
+  const theme = getTheme();
+  const columnWidth = getColumnWidth(col);
+  const currentSort = getColumnSort(col.key);
+
+  // 最后一列不需要右边框
+  const isLastColumn = props.columns && index === props.columns.length - 1;
+
+  return {
+    width: `${columnWidth}px`,
+    height: `${theme.spacing.header}px`,
+    // 使用 border-right 显示列分隔线（最后一列除外）
+    borderRight: isLastColumn ? 'none' : `1px solid #f0f0f0`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: col.align || "left",
+    cursor: col.sorter ? "pointer" : "default",
+    userSelect: "none" as "none",
+    fontSize: "14px",
+    fontWeight: "500",
+    color: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: currentSort ? "#e6f7ff" : "transparent",
+    transition: "background-color 0.2s",
+    // 使用 border-box，边框占据内部空间，与 Canvas strokeRect 对齐
+    boxSizing: "border-box" as "border-box",
+  };
+};
+
+const handleHeaderClick = (col: any, index: number) => {
+  if (!col.sorter) return;
+
+  const currentSort = getColumnSort(col.key);
+  let newSort: "ascend" | "descend" | null = null;
+
+  if (!currentSort) {
+    newSort = "ascend";
+  } else if (currentSort === "ascend") {
+    newSort = "descend";
+  }
+
+  // 更新排序状态
+  const newState = new Map(localSortState.value);
+  newState.clear();
+  if (newSort) {
+    newState.set(col.key, newSort);
+  }
+  localSortState.value = newState;
+
+  // 触发排序事件
+  emit("change", {
+    pagination: effectivePagination.value
+      ? {
+          current: currentPage.value,
+          pageSize: pageSize.value,
+        }
+      : undefined,
+    filters: {},
+    sorter: newSort
+      ? {
+          field: col.key,
+          order: newSort,
+        }
+      : null,
+  }, null, null);
+
+  renderTable();
+};
+
+const getColumnSort = (key: string): "ascend" | "descend" | null => {
+  return localSortState.value.get(key) || null;
+};
+
+// 全选相关
+const isAllSelected = computed(() => {
+  if (!props.rowSelection || !paginatedData.value) return false;
+  const { selectedRowKeys } = props.rowSelection;
+  return (
+    selectedRowKeys &&
+    selectedRowKeys.length > 0 &&
+    selectedRowKeys.length === paginatedData.value.length
+  );
+});
+
+const isSomeSelected = computed(() => {
+  if (!props.rowSelection || !paginatedData.value) return false;
+  const { selectedRowKeys } = props.rowSelection;
+  return (
+    selectedRowKeys &&
+    selectedRowKeys.length > 0 &&
+    selectedRowKeys.length < paginatedData.value.length
+  );
+});
+
+const handleSelectAll = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const checked = target.checked;
+
+  if (!props.rowSelection || !paginatedData.value) return;
+
+  const { onChange } = props.rowSelection;
+  const rowKey = props.rowKey || "key";
+
+  const newSelectedKeys = checked
+    ? paginatedData.value.map((row) => {
+        const key = typeof rowKey === "function" ? rowKey(row) : row[rowKey];
+        return key;
+      })
+    : [];
+
+  if (onChange) {
+    onChange(newSelectedKeys, checked ? paginatedData.value : []);
+  }
+};
+
+// 单元格选中框样式（仅背景）
+// 单元格 hover 样式（四条边框）
+const cellHoverBorders = computed(() => {
+  const theme = getTheme();
+  const { visible, row, col } = cellHover.value;
+
+  if (!visible || !props.columns) {
+    return {
+      top: { display: "none" as "none" },
+      bottom: { display: "none" as "none" },
+      left: { display: "none" as "none" },
+      right: { display: "none" as "none" },
+    };
+  }
+
+  const headerHeight = theme.spacing.header;
+  const cellHeight = theme.spacing.cell;
+
+  // 计算单元格的 X 坐标
+  let cellX = -scrollLeft.value;
+  if (props.columns) {
+    for (let i = 0; i < col; i++) {
+      if (props.columns[i]) {
+        cellX += getColumnWidth(props.columns[i]);
+      }
+    }
+  }
+
+  // 获取列宽
+  const cellWidth = props.columns && props.columns[col]
+    ? getColumnWidth(props.columns[col])
+    : 120;
+
+  // 计算单元格的 Y 坐标
+  let cellY: number;
+  if (props.virtualScroll && renderer.value) {
+    const scrollTop = virtualScroll.scrollTop.value;
+    cellY = headerHeight + (row * cellHeight) - scrollTop;
+  } else {
+    cellY = headerHeight + row * cellHeight;
+  }
+
+  return {
+    // 上边框
+    top: {
+      position: "absolute" as "absolute",
+      left: `${cellX}px`,
+      top: `${cellY}px`,
+      width: `${cellWidth}px`,
+      height: "1px",
+      backgroundColor: "#d9d9d9",
+      pointerEvents: "none" as "none",
+      zIndex: 49,
+    },
+    // 下边框
+    bottom: {
+      position: "absolute" as "absolute",
+      left: `${cellX}px`,
+      top: `${cellY + cellHeight}px`,
+      width: `${cellWidth}px`,
+      height: "1px",
+      backgroundColor: "#d9d9d9",
+      pointerEvents: "none" as "none",
+      zIndex: 49,
+    },
+    // 左边框
+    left: {
+      position: "absolute" as "absolute",
+      left: `${cellX}px`,
+      top: `${cellY}px`,
+      width: "1px",
+      height: `${cellHeight}px`,
+      backgroundColor: "#d9d9d9",
+      pointerEvents: "none" as "none",
+      zIndex: 49,
+    },
+    // 右边框
+    right: {
+      position: "absolute" as "absolute",
+      left: `${cellX + cellWidth}px`,
+      top: `${cellY}px`,
+      width: "1px",
+      height: `${cellHeight}px`,
+      backgroundColor: "#d9d9d9",
+      pointerEvents: "none" as "none",
+      zIndex: 49,
+    },
+  };
+});
+
+// 单元格选中框四条边样式
+const cellSelectionBorders = computed(() => {
+  const theme = getTheme();
+  const { startRow, startCol, endRow, endCol, visible } = cellSelection.value;
+
+  if (!visible) {
+    return {
+      top: { display: "none" as "none" },
+      bottom: { display: "none" as "none" },
+      left: { display: "none" as "none" },
+      right: { display: "none" as "none" },
+    };
+  }
+
+  // 确保 startRow/Col <= endRow/Col
+  const minRow = Math.min(startRow, endRow);
+  const maxRow = Math.max(startRow, endRow);
+  const minCol = Math.min(startCol, endCol);
+  const maxCol = Math.max(startCol, endCol);
+
+  // 计算选中框的位置和大小
+  const headerHeight = theme.spacing.header;
+  const cellHeight = theme.spacing.cell;
+
+  // 计算起始列的 X 坐标（考虑横向滚动）
+  let startX = -scrollLeft.value;
+  if (props.columns) {
+    for (let i = 0; i < minCol; i++) {
+      if (props.columns[i]) {
+        startX += getColumnWidth(props.columns[i]);
+      }
+    }
+  }
+
+  // 计算结束列的 X 坐标
+  let endX = startX;
+  if (props.columns) {
+    for (let i = minCol; i <= maxCol; i++) {
+      if (props.columns[i]) {
+        endX += getColumnWidth(props.columns[i]);
+      }
+    }
+  }
+
+  const width = endX - startX;
+
+  // 计算行位置（考虑虚拟滚动）
+  let topY: number;
+  if (props.virtualScroll && renderer.value) {
+    const scrollTop = virtualScroll.scrollTop.value;
+    topY = headerHeight + (minRow * cellHeight) - scrollTop;
+  } else {
+    topY = headerHeight + minRow * cellHeight;
+  }
+
+  const height = (maxRow - minRow + 1) * cellHeight;
+
+  // 四条边的样式
+  return {
+    // 上边框
+    top: {
+      position: "absolute" as "absolute",
+      left: `${startX}px`,
+      top: `${topY}px`,
+      width: `${width}px`,
+      height: "1px",
+      backgroundColor: "#108ee9",
+      pointerEvents: "none" as "none",
+      zIndex: 53,
+    },
+    // 下边框
+    bottom: {
+      position: "absolute" as "absolute",
+      left: `${startX}px`,
+      top: `${topY + height}px`,
+      width: `${width}px`,
+      height: "1px",
+      backgroundColor: "#108ee9",
+      pointerEvents: "none" as "none",
+      zIndex: 53,
+    },
+    // 左边框
+    left: {
+      position: "absolute" as "absolute",
+      left: `${startX}px`,
+      top: `${topY}px`,
+      width: "1px",
+      height: `${height}px`,
+      backgroundColor: "#108ee9",
+      pointerEvents: "none" as "none",
+      zIndex: 53,
+    },
+    // 右边框
+    right: {
+      position: "absolute" as "absolute",
+      left: `${endX}px`,
+      top: `${topY}px`,
+      width: "1px",
+      height: `${height}px`,
+      backgroundColor: "#108ee9",
+      pointerEvents: "none" as "none",
+      zIndex: 53,
+    },
+  };
+});
+
+// 获取鼠标位置对应的单元格坐标
+const getCellFromPosition = (x: number, y: number) => {
+  const theme = getTheme();
+  const headerHeight = theme.spacing.header;
+  const cellHeight = theme.spacing.cell;
+
+  // 检查是否在表头区域
+  if (y < headerHeight) {
+    return null;
+  }
+
+  // 计算行索引
+  let rowIndex: number;
+  if (props.virtualScroll && renderer.value) {
+    // 虚拟滚动模式：需要加上 scrollTop 才能得到绝对行索引
+    const scrollTop = virtualScroll.scrollTop.value;
+    rowIndex = Math.floor((y - headerHeight + scrollTop) / cellHeight);
+
+    // 检查是否在数据范围内
+    const maxRow = (paginatedData.value?.length || 0) - 1;
+    if (rowIndex < 0 || rowIndex > maxRow) {
+      return null;
+    }
+  } else {
+    // 非虚拟滚动模式
+    rowIndex = Math.floor((y - headerHeight) / cellHeight);
+    const maxRow = (paginatedData.value?.length || 0) - 1;
+
+    if (rowIndex < 0 || rowIndex > maxRow) {
+      return null;
+    }
+  }
+
+  // 计算列索引（考虑横向滚动）
+  let colIndex = 0;
+  let currentX = -scrollLeft.value;
+  for (let i = 0; i < props.columns.length; i++) {
+    const colWidth = typeof props.columns[i]?.width === 'number'
+      ? props.columns[i]?.width as number
+      : 120;
+    if (x >= currentX && x < currentX + colWidth) {
+      colIndex = i;
+      break;
+    }
+    currentX += colWidth;
+  }
+
+  return { rowIndex, colIndex };
+};
+
+// 单元格鼠标事件处理
+const handleCellMouseDown = (event: MouseEvent) => {
+  const rect = canvasRef.value!.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  const cell = getCellFromPosition(x, y);
+  if (!cell) return;
+
+  cellSelecting.value = true;
+  cellSelection.value = {
+    visible: true,
+    startRow: cell.rowIndex,
+    startCol: cell.colIndex,
+    endRow: cell.rowIndex,
+    endCol: cell.colIndex,
+  };
+};
+
+let cellMouseMoveTimer: number | null = null;
+
+const handleCellMouseMove = (event: MouseEvent) => {
+  // 如果正在选择，更新选择范围
+  if (cellSelecting.value) {
+    // 使用节流优化性能
+    if (cellMouseMoveTimer) return;
+
+    cellMouseMoveTimer = window.setTimeout(() => {
+      cellMouseMoveTimer = null;
+
+      const rect = canvasRef.value!.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      const cell = getCellFromPosition(x, y);
+      if (!cell) return;
+
+      // 限制在可见数据范围内
+      const maxRow = (paginatedData.value?.length || 0) - 1;
+      const maxCol = (props.columns?.length || 0) - 1;
+
+      cellSelection.value.endRow = Math.max(0, Math.min(cell.rowIndex, maxRow));
+      cellSelection.value.endCol = Math.max(0, Math.min(cell.colIndex, maxCol));
+    }, 16); // 约 60fps
+  } else {
+    // 否则更新 hover 状态
+    const rect = canvasRef.value!.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    const cell = getCellFromPosition(x, y);
+    if (cell) {
+      cellHover.value = {
+        visible: true,
+        row: cell.rowIndex,
+        col: cell.colIndex,
+      };
+    } else {
+      cellHover.value.visible = false;
+    }
+  }
+};
+
+const handleCellMouseUp = () => {
+  cellSelecting.value = false;
+
+  // 清除节流定时器
+  if (cellMouseMoveTimer) {
+    clearTimeout(cellMouseMoveTimer);
+    cellMouseMoveTimer = null;
+  }
+};
+
+const handleCellMouseLeave = () => {
+  // 清除 hover 状态
+  cellHover.value.visible = false;
+};
 
 // 是否显示滚动条
 const showScrollbar = computed(() => {
@@ -1029,16 +1634,18 @@ const handleMouseMove = (event: MouseEvent) => {
 
   if (cell && cell.row !== undefined && cell.col !== undefined) {
     hoveredCell.value = cell;
-    renderer.value.highlightCell(cell);
+    // 禁用Canvas的hover高亮背景
+    // renderer.value.highlightCell(cell);
   } else {
     hoveredCell.value = null;
-    renderer.value?.clearHighlight();
+    // renderer.value?.clearHighlight();
   }
 };
 
 const handleMouseLeave = () => {
   hoveredCell.value = null;
-  renderer.value?.clearHighlight();
+  // 禁用Canvas的hover高亮清除
+  // renderer.value?.clearHighlight();
 };
 
 const handleSort = (column: Column) => {
@@ -1207,6 +1814,11 @@ const handleWheel = (event: WheelEvent) => {
     scrollLeft.value = newScrollLeft;
     emit("scroll", { scrollTop: virtualScroll.scrollTop.value, scrollLeft: newScrollLeft });
     renderTable();
+
+    // 横向滚动时隐藏选中框
+    if (cellSelection.value.visible) {
+      cellSelection.value.visible = false;
+    }
     return;
   }
 
@@ -1222,11 +1834,23 @@ const handleWheel = (event: WheelEvent) => {
   const dataLength = data.length;
   const totalHeight = dataLength * getTheme().spacing.cell;
   const maxScrollTop = Math.max(0, totalHeight - visibleHeight);
-  const newScrollTop = Math.max(0, Math.min(virtualScroll.scrollTop.value + event.deltaY, maxScrollTop));
+  const currentScrollTop = virtualScroll.scrollTop.value;
+
+  // 边界检查：如果已经在顶部且继续向上滚动，或在底部且继续向下滚动，阻止事件
+  if (currentScrollTop <= 0 && event.deltaY < 0) {
+    // 已经在顶部，且继续向上滚动
+    return;
+  }
+  if (currentScrollTop >= maxScrollTop && event.deltaY > 0) {
+    // 已经在底部，且继续向下滚动
+    return;
+  }
+
+  const newScrollTop = Math.max(0, Math.min(currentScrollTop + event.deltaY, maxScrollTop));
 
   console.log('🖱️ 滚动事件:', {
     deltaY: event.deltaY,
-    currentScrollTop: virtualScroll.scrollTop.value,
+    currentScrollTop,
     newScrollTop,
     maxScrollTop,
     dataLength,
@@ -1237,10 +1861,15 @@ const handleWheel = (event: WheelEvent) => {
     paginationHeight: getPaginationHeight()
   });
 
-  virtualScroll.scrollTop.value = newScrollTop;
+  virtualScroll.virtualScroll.setScrollTop(newScrollTop);
 
   emit("scroll", { scrollTop: newScrollTop, scrollLeft: scrollLeft.value });
   renderTable();
+
+  // 滚动时隐藏选中框
+  if (cellSelection.value.visible) {
+    cellSelection.value.visible = false;
+  }
 };
 
 // 滚动条拖动处理
@@ -1279,7 +1908,7 @@ const handleScrollbarDragMove = (event: MouseEvent) => {
   const deltaScrollTop = (deltaY / maxThumbTop) * maxScrollTop;
   const newScrollTop = Math.max(0, Math.min(scrollbarDragStartScrollTop.value + deltaScrollTop, maxScrollTop));
 
-  virtualScroll.scrollTop.value = newScrollTop;
+  virtualScroll.virtualScroll.setScrollTop(newScrollTop);
   emit("scroll", { scrollTop: newScrollTop, scrollLeft: 0 });
   renderTable();
 };
@@ -1422,7 +2051,7 @@ const renderTable = () => {
 };
 
 const handleScroll = (scrollTop: number) => {
-  virtualScroll.scrollTop.value = scrollTop;
+  virtualScroll.virtualScroll.setScrollTop(scrollTop);
   renderTable();
 };
 
@@ -1576,6 +2205,55 @@ watch(
   { deep: true }
 );
 
+// 监听虚拟滚动变化，滚动时隐藏选中框
+// 注释掉：现在选中框位置是根据滚动实时计算的，不需要自动隐藏
+// 监听虚拟滚动变化，滚动时清除选中框和hover状态
+watch(
+  () => virtualScroll.scrollTop.value,
+  () => {
+    // 滚动时清除选中框，避免位置错乱
+    if (cellSelection.value.visible && !cellSelecting.value) {
+      cellSelection.value.visible = false;
+    }
+    // 滚动时清除hover状态
+    cellHover.value.visible = false;
+  }
+);
+
+// 监听横向滚动变化
+watch(
+  () => scrollLeft.value,
+  () => {
+    // 横向滚动时清除选中框，避免位置错乱
+    if (cellSelection.value.visible && !cellSelecting.value) {
+      cellSelection.value.visible = false;
+    }
+    // 横向滚动时清除hover状态
+    cellHover.value.visible = false;
+  }
+);
+
+// 监听单元格选中状态变化，同步到 Canvas 渲染器
+watch(
+  () => cellSelection.value,
+  (newSelection) => {
+    if (renderer.value) {
+      const selection = newSelection.visible
+        ? {
+            visible: true,
+            startRow: newSelection.startRow,
+            startCol: newSelection.startCol,
+            endRow: newSelection.endRow,
+            endCol: newSelection.endCol,
+          }
+        : null;
+
+      (renderer.value as any).setCellSelection(selection);
+    }
+  },
+  { deep: true }
+);
+
 onMounted(() => {
   console.log('🎯 CTable 已挂载');
 
@@ -1706,10 +2384,133 @@ defineExpose({
 .ctable-container {
   position: relative;
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .ctable-canvas {
   display: block;
+  cursor: cell;
+}
+
+/* 单元格 hover - 四条边框 */
+.ctable-hover-border-top,
+.ctable-hover-border-bottom,
+.ctable-hover-border-left,
+.ctable-hover-border-right {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* 单元格选中框 - 四条边 */
+.ctable-selection-border-top,
+.ctable-selection-border-bottom,
+.ctable-selection-border-left,
+.ctable-selection-border-right {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* HTML 表头 */
+.ctable-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  z-index: 100;
+  background-color: #fafafa;
+}
+
+.ctable-header-cell {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  position: relative;
+  transition: background-color 0.2s;
+}
+
+
+.ctable-header-cell-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 16px;
+}
+
+.ctable-header-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.ctable-header-sort {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  margin-left: 4px;
+}
+
+.ctable-sort-icon {
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.25;
+  color: #bfbfbf;
+  transition: all 0.2s;
+}
+
+.ctable-header-cell:hover .ctable-sort-icon {
+  opacity: 0.45;
+  color: #bfbfbf;
+}
+
+.ctable-sort-ascend,
+.ctable-sort-descend {
+  opacity: 1 !important;
+  color: #1890ff !important;
+}
+
+.ctable-header-filter {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.ctable-filter-icon {
+  font-size: 12px;
+  opacity: 0.25;
+  color: #bfbfbf;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ctable-filter-icon:hover {
+  opacity: 0.65;
+  color: #8c8c8c;
+}
+
+.ctable-header-cell:hover .ctable-filter-icon {
+  opacity: 0.45;
+}
+
+.ctable-filter-active {
+  opacity: 1 !important;
+  color: #1890ff !important;
+}
+
+/* 复选框样式 */
+.ctable-header-cell input[type="checkbox"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  accent-color: #1890ff;
 }
 
 .ctable-scrollbar {

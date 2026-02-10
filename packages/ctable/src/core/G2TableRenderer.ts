@@ -29,6 +29,15 @@ export class G2TableRenderer {
   private filterState: Set<string> = new Set()
   private scrollLeft: number = 0  // 横向滚动位置
 
+  // 单元格选中状态
+  private cellSelection: {
+    visible: boolean
+    startRow: number
+    startCol: number
+    endRow: number
+    endCol: number
+  } | null = null
+
   // 图标动画状态
   private iconAnimations: Map<string, {
     progress: number  // 0 到 1
@@ -267,17 +276,16 @@ export class G2TableRenderer {
    * 完全重绘（用于初始化或数据大幅变化）
    */
   private fullRender(headerHeight: number, cellHeight: number) {
-    // 清除画布
-    this.ctx!.clearRect(0, 0, this.width, this.height)
+    // 清除画布（跳过表头区域，因为使用 HTML 表头）
+    this.ctx!.clearRect(0, headerHeight, this.width, this.height - headerHeight)
 
-    // 设置裁剪区域
+    // 设置裁剪区域（只裁剪数据区域）
     this.ctx!.save()
     this.ctx!.beginPath()
-    this.ctx!.rect(0, 0, this.width, this.height)
+    this.ctx!.rect(0, headerHeight, this.width, this.height - headerHeight)
     this.ctx!.clip()
 
-    // 绘制所有内容
-    this.renderHeader(headerHeight)
+    // 绘制数据内容（不绘制表头）
     this.renderVisibleRows(headerHeight, cellHeight)
     this.renderGrid(headerHeight, cellHeight)
 
@@ -296,31 +304,26 @@ export class G2TableRenderer {
   private incrementalRender(headerHeight: number, cellHeight: number) {
     if (!this.ctx) return
 
-    // 如果表头有变化，重绘表头
-    if (this.isHeaderDirty) {
-      const y = 0
-      this.ctx.clearRect(0, y, this.width, headerHeight)
-      this.renderHeader(headerHeight)
-      this.isHeaderDirty = false
-    }
+    // 表头不再使用 Canvas 渲染，跳过
+    this.isHeaderDirty = false
 
     // 如果有脏区域，重绘这些区域
     this.dirtyRegions.forEach(region => {
+      // 跳过表头区域的脏区域
+      if (region.y < headerHeight) {
+        return
+      }
+
       this.ctx.clearRect(region.x, region.y, region.width, region.height)
 
-      // 确定这个区域是表头还是数据行
-      if (region.y < headerHeight) {
-        this.renderHeader(headerHeight)
-      } else {
-        // 计算受影响的行
-        const startRow = Math.floor((region.y - headerHeight) / cellHeight)
-        const endRow = Math.ceil((region.y + region.height - headerHeight) / cellHeight)
+      // 计算受影响的行
+      const startRow = Math.floor((region.y - headerHeight) / cellHeight)
+      const endRow = Math.ceil((region.y + region.height - headerHeight) / cellHeight)
 
-        // 只重绘受影响的行
-        for (let row = startRow; row <= endRow && row < this.visibleRows.length; row++) {
-          const y = headerHeight + row * cellHeight
-          this.renderRow(row, y, cellHeight)
-        }
+      // 只重绘受影响的行
+      for (let row = startRow; row <= endRow && row < this.visibleRows.length; row++) {
+        const y = headerHeight + row * cellHeight
+        this.renderRow(row, y, cellHeight)
       }
     })
 
@@ -717,28 +720,23 @@ export class G2TableRenderer {
       const relativeOffset = rowIndex - firstVisibleRowOffset
 
       // 计算 Y 坐标：从表头下方开始，加上相对偏移，减去滚动偏移
-      const y = headerHeight + relativeOffset * cellHeight - scrollOffset
+      // 调整：让第一行从 headerHeight 开始，实现平滑滚动
+      const y = headerHeight - scrollOffset + relativeOffset * cellHeight
 
-      // 如果行超出底部，跳过
-      if (y >= this.height) {
-        return
-      }
-
-      // 如果行完全在表头下方（被表头遮挡），跳过
+      // 跳过完全在表头上方的行
       if (y + cellHeight <= headerHeight) {
         return
       }
 
-      // 如果行顶部在表头下方，但行顶部在可视区域内，需要裁剪绘制
-      // 计算实际绘制的 Y 坐标和高度
-      let actualY = y
-      let actualHeight = cellHeight
-
-      if (y < headerHeight) {
-        // 行被表头遮挡，从 headerHeight 开始绘制
-        actualY = headerHeight
-        actualHeight = cellHeight - (headerHeight - y)
+      // 跳过完全超出底部的行
+      if (y >= this.height) {
+        return
       }
+
+      // 处理部分在表头内的行：保持完整高度，让行平滑滚动
+      // Canvas 会自动裁剪表头区域外的内容
+      const actualY = y
+      const actualHeight = cellHeight
 
       const isStripe = colors.stripe && actualRowIndex % 2 === 1
 
@@ -845,6 +843,83 @@ export class G2TableRenderer {
       // 应用横向滚动偏移
       this.ctx.moveTo(-this.scrollLeft, bottomY)
       this.ctx.lineTo(gridLineWidth - this.scrollLeft, bottomY)
+      this.ctx.stroke()
+    }
+
+    // 绘制选中框的网格线
+    this.renderCellSelectionGrid(headerHeight, cellHeight)
+  }
+
+  /**
+   * 绘制单元格选中框的网格线
+   */
+  private renderCellSelectionGrid(headerHeight: number, cellHeight: number) {
+    if (!this.cellSelection || !this.cellSelection.visible) {
+      return
+    }
+
+    const { startRow, startCol, endRow, endCol } = this.cellSelection
+
+    // 确保 startRow/Col <= endRow/Col
+    const minRow = Math.min(startRow, endRow)
+    const maxRow = Math.max(startRow, endRow)
+    const minCol = Math.min(startCol, endCol)
+    const maxCol = Math.max(startCol, endCol)
+
+    // 计算选中区域的起始位置
+    const scrollTop = this.lastScrollTop
+
+    // 计算顶部 Y 坐标
+    const topY = headerHeight + (minRow * cellHeight) - scrollTop
+    const totalHeight = (maxRow - minRow + 1) * cellHeight
+
+    // 计算起始 X 坐标
+    let startX = -this.scrollLeft
+    for (let i = 0; i < minCol; i++) {
+      const colWidth = typeof this.columns[i]?.width === 'number'
+        ? this.columns[i]?.width as number
+        : 120
+      startX += colWidth
+    }
+
+    // 绘制垂直网格线（在列之间）
+    let currentX = startX
+    for (let i = minCol; i <= maxCol; i++) {
+      const colWidth = typeof this.columns[i]?.width === 'number'
+        ? this.columns[i]?.width as number
+        : 120
+      currentX += colWidth
+
+      // 在列与列之间的边界上添加垂直网格线（不包括最右侧）
+      if (i < maxCol) {
+        this.ctx.strokeStyle = 'rgba(24, 144, 255, 0.4)'
+        this.ctx.lineWidth = 1
+        this.ctx.beginPath()
+        this.ctx.moveTo(currentX, topY)
+        this.ctx.lineTo(currentX, topY + totalHeight)
+        this.ctx.stroke()
+      }
+    }
+
+    // 绘制水平网格线（在行之间）
+    for (let i = minRow; i < maxRow; i++) {
+      const lineY = topY + (i - minRow + 1) * cellHeight
+
+      this.ctx.strokeStyle = 'rgba(24, 144, 255, 0.4)'
+      this.ctx.lineWidth = 1
+      this.ctx.beginPath()
+
+      // 计算总宽度
+      let totalWidth = 0
+      for (let j = minCol; j <= maxCol; j++) {
+        const colWidth = typeof this.columns[j]?.width === 'number'
+          ? this.columns[j]?.width as number
+          : 120
+        totalWidth += colWidth
+      }
+
+      this.ctx.moveTo(startX, lineY)
+      this.ctx.lineTo(startX + totalWidth, lineY)
       this.ctx.stroke()
     }
   }
@@ -1196,6 +1271,22 @@ export class G2TableRenderer {
 
   getSelectedRows(): number[] {
     return Array.from(this.selectedRows)
+  }
+
+  /**
+   * 设置单元格选中状态
+   */
+  setCellSelection(selection: {
+    visible: boolean
+    startRow: number
+    startCol: number
+    endRow: number
+    endCol: number
+  } | null) {
+    this.cellSelection = selection
+
+    // 触发重绘
+    this.render()
   }
 
   // ============================================================================

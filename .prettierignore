@@ -1,0 +1,31 @@
+# 依赖
+node_modules
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# 构建产物
+dist
+build
+*.tsbuildinfo
+
+# 缓存
+.cache
+.vscode
+.idea
+*.log
+
+# 配置文件
+vite.config.ts
+*.config.js
+*.config.ts
+
+# 文档
+docs
+doc
+*.md
+
+# 其他
+coverage
+.nyc_output
+.DS_Store
