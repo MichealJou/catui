@@ -6,7 +6,8 @@
       "Bash(lsof:*)",
       "Bash(xargs kill:*)",
       "Bash(npx vue-tsc:*)",
-      "Bash(pnpm install:*)"
+      "Bash(pnpm install:*)",
+      "Bash(pnpm run build:canvas-table:*)"
     ]
   }
 }

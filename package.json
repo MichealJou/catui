@@ -1,4 +1,17 @@
 {
+	"scripts": {
+		"dev": "pnpm -r --parallel dev",
+		"dev:demo": "pnpm --filter @catui/demo dev",
+		"dev:canvas-table": "pnpm --filter @catui/canvas-table dev",
+		"build": "pnpm -r build",
+		"build:canvas-table": "pnpm --filter @catui/canvas-table build",
+		"build:demo": "pnpm --filter @catui/demo build",
+		"build:all": "pnpm build:canvas-table && pnpm build:demo",
+		"preview": "pnpm --filter @catui/demo preview",
+		"lint": "pnpm -r lint",
+		"type-check": "pnpm --filter @catui/canvas-table type-check",
+		"clean": "pnpm --filter @catui/canvas-table clean"
+	},
 	"dependencies": {
 		"@iconify/vue": "^5.0.0"
 	}
