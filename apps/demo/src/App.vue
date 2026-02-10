@@ -30,8 +30,14 @@
       <button class="control-btn" @click="toggleTheme">
         主题: {{ getThemeDisplayName(currentTheme) }}
       </button>
+      <button class="control-btn" @click="togglePaginationMode">
+        分页: {{ paginationModes[currentPaginationMode].name }}
+      </button>
       <button class="control-btn" @click="clearFilters">
         清除筛选
+      </button>
+      <button class="control-btn test-btn" @click="runG2Test">
+        🧪 测试 G2 API
       </button>
     </div>
 
@@ -46,6 +52,14 @@
     <div class="table-container" ref="tableContainerRef">
       <div class="table-title">数据表格 ({{ tableData.length }} 条记录)</div>
 
+      <!-- Loading 覆盖层 -->
+      <CLoading
+        :visible="loading"
+        :text="loadingText"
+        :show-progress="showLoadingProgress"
+        :progress="loadingProgress"
+      />
+
       <CTable
         v-if="tableWidth > 0"
         ref="canvasTableRef"
@@ -56,13 +70,21 @@
         :theme="currentTheme"
         :virtual-scroll="true"
         :row-selection="{ type: 'checkbox', selectedRowKeys: selectedKeys }"
+        :pagination="effectivePaginationConfig"
         @cell-click="handleCellClick"
         @row-click="handleRowClick"
         @selection-change="handleSelectionChange"
         @scroll="handleScroll"
         @sort-change="handleSortChange"
         @filter-change="handleFilterChange"
-      />
+      >
+        <!-- 分页插槽示例 -->
+        <template #pagination-total="{ total, range }">
+          <span style="color: #1677ff; font-weight: 500;">
+            显示 {{ range[0] }}-{{ range[1] }} 条，共 {{ total }} 条数据
+          </span>
+        </template>
+      </CTable>
 
       <div v-else class="loading-state">
         正在初始化表格...
@@ -92,10 +114,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue'
 import { CTable } from '@catui/ctable'
 import type { Column } from '@catui/ctable'
 import type { ThemePreset } from '@catui/ctable'
+// @ts-ignore
+import { testG2API } from './test-g2-api'
+import CLoading from './components/CLoading.vue'
 
 interface TestData {
   id: number
@@ -112,7 +137,51 @@ interface TestData {
 const tableData = ref<TestData[]>([])
 const selectedKeys = ref<string[]>([])
 const loading = ref(false)
+const loadingText = ref('加载中...')
+const showLoadingProgress = ref(false)
+const loadingProgress = ref(0)
 const lastAction = ref('等待操作')
+
+// 分页配置
+const currentPage = ref(1)
+const pageSize = ref(10)
+const paginationConfig = ref({
+  current: 1,
+  pageSize: 10,
+  total: 0,
+  showSizeChanger: true,
+  showQuickJumper: false,
+  showTotal: (total: number) => `共 ${total} 条`,
+  pageSizeOptions: [10, 20, 50, 100],
+  onChange: (page: number, size: number) => {
+    console.log('分页变化:', page, size)
+    currentPage.value = page
+    lastAction.value = `切换到第 ${page} 页，每页 ${size} 条`
+  },
+  onShowSizeChange: (current: number, size: number) => {
+    console.log('每页条数变化:', current, size)
+    pageSize.value = size
+    lastAction.value = `每页显示 ${size} 条数据`
+  }
+})
+
+// 分页模式配置
+const paginationModes = [
+  { name: '基础分页', config: { showSizeChanger: false, showQuickJumper: false } },
+  { name: '完整分页', config: { showSizeChanger: true, showQuickJumper: true } },
+  { name: '简洁模式', config: { simple: true, showSizeChanger: true } },
+  { name: '迷你版本', config: { size: 'small', showSizeChanger: true } },
+  { name: '上一步/下一步', config: { prevText: '上一页', nextText: '下一页', showSizeChanger: true } }
+]
+const currentPaginationMode = ref(0)
+
+// 当前分页配置
+const effectivePaginationConfig = computed(() => {
+  return {
+    ...paginationConfig.value,
+    ...paginationModes[currentPaginationMode.value].config
+  }
+})
 
 // 表格配置
 const themePresets: ThemePreset[] = [
@@ -206,7 +275,10 @@ onMounted(() => {
       const containerWidth = tableContainerRef.value!.clientWidth
 
       // 计算所有列的总宽度
-      const columnsTotalWidth = columns.reduce((sum, col) => sum + (col.width || 120), 0)
+      const columnsTotalWidth = columns.reduce((sum, col) => {
+        const width = typeof col.width === 'number' ? col.width : 120
+        return sum + width
+      }, 0)
 
       // 只在宽度真正改变时才更新
       const newWidth = Math.max(columnsTotalWidth, containerWidth - 2)
@@ -234,7 +306,10 @@ const updateTableWidth = () => {
     const containerWidth = tableContainerRef.value.clientWidth
 
     // 计算所有列的总宽度
-    const columnsTotalWidth = columns.reduce((sum, col) => sum + (col.width || 120), 0)
+    const columnsTotalWidth = columns.reduce((sum, col) => {
+      const width = typeof col.width === 'number' ? col.width : 120
+      return sum + width
+    }, 0)
 
     // 表格宽度 = Math.max(容器宽度, 列总宽度)
     // 这样可以确保：
@@ -256,6 +331,9 @@ const debounce = <T extends (...args: any[]) => any>(fn: T, delay: number): T =>
 // 生成测试数据
 const generateData = (count: number) => {
   loading.value = true
+  loadingText.value = `正在生成 ${count.toLocaleString()} 条数据...`
+  showLoadingProgress.value = count > 10000
+  loadingProgress.value = 0
   lastAction.value = `生成 ${count} 条数据`
 
   const jobs = ['工程师', '设计师', '产品经理', '运营', '销售', '市场', '财务', '人事']
@@ -277,7 +355,10 @@ const generateData = (count: number) => {
       })
     }
     tableData.value = data
+    paginationConfig.value.total = data.length
     loading.value = false
+    showLoadingProgress.value = false
+    loadingProgress.value = 0
     console.log(`生成了 ${count} 条数据`)
   } else {
     // 大数据量使用分批生成避免阻塞 UI
@@ -305,12 +386,16 @@ const generateData = (count: number) => {
         }
 
         currentBatch++
+        loadingProgress.value = Math.floor((currentBatch / totalBatches) * 100)
 
         if (currentBatch < totalBatches) {
           requestAnimationFrame(generateBatch)
         } else {
           tableData.value = data
+          paginationConfig.value.total = data.length
           loading.value = false
+          showLoadingProgress.value = false
+          loadingProgress.value = 0
           console.log(`生成了 ${count} 条数据`)
         }
       }
@@ -324,7 +409,10 @@ const generateData = (count: number) => {
 const clearData = () => {
   tableData.value = []
   selectedKeys.value = []
+  paginationConfig.value.total = 0
+  currentPage.value = 1
   lastAction.value = '清空数据'
+  console.log('✅ 数据已清空')
 }
 
 // 切换主题（循环切换所有预设）
@@ -333,6 +421,12 @@ const toggleTheme = () => {
   const nextIndex = (currentIndex + 1) % themePresets.length
   currentTheme.value = themePresets[nextIndex]
   lastAction.value = `切换主题为 ${getThemeDisplayName(currentTheme.value)}`
+}
+
+// 切换分页模式
+const togglePaginationMode = () => {
+  currentPaginationMode.value = (currentPaginationMode.value + 1) % paginationModes.length
+  lastAction.value = `切换分页模式为 ${paginationModes[currentPaginationMode.value].name}`
 }
 
 // 获取主题显示名称
@@ -375,7 +469,11 @@ const handleCellClick = (cell: any, row: TestData, column: Column) => {
 const handleSelectionChange = (selectedRows: TestData[], keys: string[]) => {
   selectedKeys.value = keys
   lastAction.value = `选中 ${keys.length} 行数据`
-  console.log('选择变化:', selectedRows, keys)
+  console.log('✅ Demo收到选择变化事件:', {
+    选中行数: selectedRows.length,
+    选中的keys: keys,
+    选中的数据: selectedRows.map(r => ({ id: r.id, name: r.name }))
+  })
 }
 
 const handleScroll = (scrollTop: number, scrollLeft: number) => {
@@ -397,6 +495,21 @@ const clearFilters = () => {
   if (canvasTableRef.value) {
     canvasTableRef.value.clearFilters()
     lastAction.value = '清除所有筛选'
+  }
+}
+
+// G2 API 测试函数
+const runG2Test = () => {
+  console.log('🧪 准备测试 G2 API...')
+  lastAction.value = '正在测试 G2 API...'
+
+  try {
+    const chart = testG2API()
+    lastAction.value = 'G2 API 测试成功！请查看控制台'
+    console.log('✅ G2 API 测试完成，Chart 对象:', chart)
+  } catch (error) {
+    console.error('❌ G2 API 测试失败:', error)
+    lastAction.value = 'G2 API 测试失败：' + (error as Error).message
   }
 }
 </script>
@@ -426,6 +539,7 @@ const clearFilters = () => {
 }
 
 .table-container {
+  position: relative;
   margin-bottom: 20px;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
@@ -466,6 +580,18 @@ const clearFilters = () => {
 
 .control-btn:active {
   background: #096dd9;
+}
+
+.test-btn {
+  background: #722ed1;
+}
+
+.test-btn:hover {
+  background: #9254de;
+}
+
+.test-btn:active {
+  background: #531dab;
 }
 
 .theme-info {

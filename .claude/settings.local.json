@@ -7,7 +7,9 @@
       "Bash(xargs kill:*)",
       "Bash(npx vue-tsc:*)",
       "Bash(pnpm install:*)",
-      "Bash(pnpm run build:canvas-table:*)"
+      "Bash(pnpm run build:canvas-table:*)",
+      "Bash(curl:*)",
+      "mcp__web-reader__webReader"
     ]
   }
 }
