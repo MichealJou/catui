@@ -47,6 +47,40 @@ export class G2TableRenderer {
   // 复选框渲染器
   private checkboxRenderer: CheckboxRenderer = new CheckboxRenderer(16)
 
+  // ========== 增量更新优化 ==========
+  // 脏区域标记
+  private dirtyRegions: Array<{ x: number; y: number; width: number; height: number }> = []
+  private isHeaderDirty: boolean = false
+  private isGridDirty: boolean = false
+
+  // 上次渲染的可见数据（用于变化检测）
+  private lastVisibleData: Map<string, any> = new Map()
+  private lastScrollTop: number = 0
+  private lastScrollLeft: number = 0
+
+  // ========== 展开行功能 ==========
+  private expandConfig: {
+    enabled: boolean
+    expandedKeys: string[]
+    expandedRowRender?: (record: any) => any
+    expandRowByClick: boolean
+  } = {
+    enabled: false,
+    expandedKeys: [],
+    expandRowByClick: false
+  }
+
+  // ========== 树形数据支持 ==========
+  private treeConfig: {
+    enabled: boolean
+    indentSize: number
+    rowLevelMap: Map<number, number>  // rowIndex -> level
+  } = {
+    enabled: false,
+    indentSize: 20,
+    rowLevelMap: new Map()
+  }
+
   constructor(canvas: HTMLCanvasElement, width: number, height: number, theme: ThemeConfig, selectable: boolean = false) {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
@@ -112,21 +146,94 @@ export class G2TableRenderer {
     this.columns = columns
   }
 
+  setExpandConfig(config: {
+    expandedKeys: string[]
+    expandedRowRender?: (record: any) => any
+    expandRowByClick: boolean
+  }) {
+    this.expandConfig = {
+      enabled: true,
+      expandedKeys: config.expandedKeys,
+      expandedRowRender: config.expandedRowRender,
+      expandRowByClick: config.expandRowByClick
+    }
+    this.render()
+  }
+
+  updateExpandedKeys(expandedKeys: string[]) {
+    this.expandConfig.expandedKeys = expandedKeys
+    this.render()
+  }
+
+  isRowExpanded(rowKey: string): boolean {
+    return this.expandConfig.expandedKeys.includes(rowKey)
+  }
+
+  setTreeConfig(enabled: boolean, indentSize: number = 20) {
+    this.treeConfig = {
+      enabled,
+      indentSize,
+      rowLevelMap: new Map()
+    }
+  }
+
+  setRowLevel(rowIndex: number, level: number) {
+    if (this.treeConfig.enabled) {
+      this.treeConfig.rowLevelMap.set(rowIndex, level)
+    }
+  }
+
+  getRowLevel(rowIndex: number): number {
+    return this.treeConfig.rowLevelMap.get(rowIndex) || 0
+  }
+
   setVisibleData(startIndex: number, endIndex: number) {
+    const oldStartIndex = this.startIndex
+    const oldEndIndex = this.endIndex
+
     this.startIndex = startIndex
     this.endIndex = endIndex
     this.visibleRows = this.data.slice(startIndex, endIndex)
+
+    // 计算滚动距离，用于优化渲染策略
+    const scrollDelta = Math.abs(startIndex - oldStartIndex)
+
+    // 如果滚动距离很小（小于缓冲区），只标记脏区域
+    if (scrollDelta < 5) {
+      // 小幅滚动，只标记变化的区域
+      const headerHeight = this.theme.spacing.header
+      const cellHeight = this.theme.spacing.cell
+
+      if (startIndex > oldStartIndex) {
+        // 向下滚动，上面的行移出，下面的行进入
+        const newRowsY = headerHeight + (endIndex - oldEndIndex) * cellHeight
+        this.markDirtyRegion(0, newRowsY, this.width, this.height - newRowsY)
+      } else {
+        // 向上滚动，下面的行移出，上面的行进入
+        const newRowsHeight = (oldStartIndex - startIndex) * cellHeight
+        this.markDirtyRegion(0, headerHeight, this.width, newRowsHeight)
+      }
+    } else {
+      // 大幅滚动，将在 render() 中通过 detectChanges() 决定是否完全重绘
+      // 不需要做特殊处理
+    }
 
     this.render()
   }
 
   setScrollLeft(scrollLeft: number) {
     this.scrollLeft = scrollLeft
-    this.render()
+    // 不立即渲染，由调用方决定何时渲染
+  }
+
+  setScrollTop(scrollTop: number) {
+    this.lastScrollTop = scrollTop
+    // 不立即渲染，由调用方决定何时渲染
   }
 
   /**
    * 主渲染方法 - 使用原生 Canvas（G2 Mark API 待完善）
+   * 支持增量更新优化
    */
   render() {
     if (!this.ctx) {
@@ -136,30 +243,162 @@ export class G2TableRenderer {
     // 更新动画
     this.updateAnimations()
 
-    // 清除画布
-    this.ctx.clearRect(0, 0, this.width, this.height)
-
     const headerHeight = this.theme.spacing.header
     const cellHeight = this.theme.spacing.cell
 
-    // 设置裁剪区域
-    this.ctx.save()
-    this.ctx.beginPath()
-    this.ctx.rect(0, 0, this.width, this.height)
-    this.ctx.clip()
+    // 检测是否需要完全重绘
+    const needsFullRender = this.detectChanges()
 
-    // 绘制内容
-    this.renderHeader(headerHeight)
-    this.renderVisibleRows(headerHeight, cellHeight)
-    this.renderGrid(headerHeight, cellHeight)
-
-    // 恢复裁剪状态
-    this.ctx.restore()
+    if (needsFullRender) {
+      // 完全重绘（初始化或数据变化）
+      this.fullRender(headerHeight, cellHeight)
+    } else {
+      // 增量更新（只重绘变化的部分）
+      this.incrementalRender(headerHeight, cellHeight)
+    }
 
     // 如果有动画在进行，继续下一帧
     if (this.iconAnimations.size > 0) {
       this.animationFrameId = requestAnimationFrame(() => this.render())
     }
+  }
+
+  /**
+   * 完全重绘（用于初始化或数据大幅变化）
+   */
+  private fullRender(headerHeight: number, cellHeight: number) {
+    // 清除画布
+    this.ctx!.clearRect(0, 0, this.width, this.height)
+
+    // 设置裁剪区域
+    this.ctx!.save()
+    this.ctx!.beginPath()
+    this.ctx!.rect(0, 0, this.width, this.height)
+    this.ctx!.clip()
+
+    // 绘制所有内容
+    this.renderHeader(headerHeight)
+    this.renderVisibleRows(headerHeight, cellHeight)
+    this.renderGrid(headerHeight, cellHeight)
+
+    // 恢复裁剪状态
+    this.ctx!.restore()
+
+    // 重置脏标记
+    this.dirtyRegions = []
+    this.isHeaderDirty = false
+    this.isGridDirty = false
+  }
+
+  /**
+   * 增量更新（只重绘变化的部分）
+   */
+  private incrementalRender(headerHeight: number, cellHeight: number) {
+    if (!this.ctx) return
+
+    // 如果表头有变化，重绘表头
+    if (this.isHeaderDirty) {
+      const y = 0
+      this.ctx.clearRect(0, y, this.width, headerHeight)
+      this.renderHeader(headerHeight)
+      this.isHeaderDirty = false
+    }
+
+    // 如果有脏区域，重绘这些区域
+    this.dirtyRegions.forEach(region => {
+      this.ctx.clearRect(region.x, region.y, region.width, region.height)
+
+      // 确定这个区域是表头还是数据行
+      if (region.y < headerHeight) {
+        this.renderHeader(headerHeight)
+      } else {
+        // 计算受影响的行
+        const startRow = Math.floor((region.y - headerHeight) / cellHeight)
+        const endRow = Math.ceil((region.y + region.height - headerHeight) / cellHeight)
+
+        // 只重绘受影响的行
+        for (let row = startRow; row <= endRow && row < this.visibleRows.length; row++) {
+          const y = headerHeight + row * cellHeight
+          this.renderRow(row, y, cellHeight)
+        }
+      }
+    })
+
+    this.dirtyRegions = []
+  }
+
+  /**
+   * 标记脏区域（需要重绘的区域）
+   */
+  private markDirtyRegion(x: number, y: number, width: number, height: number) {
+    // 合并相邻或重叠的脏区域，减少重绘次数
+    const merged = this.dirtyRegions.some(region => {
+      const xOverlap = Math.max(0, Math.min(region.x + region.width, x + width) - Math.max(region.x, x))
+      const yOverlap = Math.max(0, Math.min(region.y + region.height, y + height) - Math.max(region.y, y))
+
+      // 如果有重叠，合并区域
+      if (xOverlap > 0 && yOverlap > 0) {
+        region.x = Math.min(region.x, x)
+        region.y = Math.min(region.y, y)
+        region.width = Math.max(region.x + region.width, x + width) - region.x
+        region.height = Math.max(region.y + region.height, y + height) - region.y
+        return true
+      }
+      return false
+    })
+
+    // 如果没有合并，添加新区域
+    if (!merged) {
+      this.dirtyRegions.push({ x, y, width, height })
+    }
+  }
+
+  /**
+   * 检测变化，决定是否需要完全重绘
+   */
+  private detectChanges(): boolean {
+    // 检查数据是否大幅变化（超过50%的可见数据变化）
+    const currentVisibleDataStr = JSON.stringify(this.visibleRows)
+    const lastVisibleDataStr = JSON.stringify(Array.from(this.lastVisibleData.values()))
+
+    if (currentVisibleDataStr !== lastVisibleDataStr) {
+      // 计算变化比例
+      const currentKeys = new Set(this.visibleRows.map(row => JSON.stringify(row)))
+      const lastKeys = new Set(this.lastVisibleData.keys())
+
+      let changedCount = 0
+      currentKeys.forEach(key => {
+        if (!lastKeys.has(key)) changedCount++
+      })
+
+      const changeRatio = changedCount / Math.max(currentKeys.size, 1)
+
+      // 如果变化超过50%，完全重绘
+      if (changeRatio > 0.5) {
+        // 更新缓存
+        this.lastVisibleData.clear()
+        this.visibleRows.forEach(row => {
+          this.lastVisibleData.set(JSON.stringify(row), row)
+        })
+        return true
+      }
+    }
+
+    // 检查滚动位置是否大幅变化（超过一页）
+    const scrollDelta = Math.abs(this.lastScrollTop - (this.startIndex * this.theme.spacing.cell))
+
+    // 如果滚动变化超过一页高度，强制完全重绘
+    const pageHeight = this.height - this.theme.spacing.header
+    if (scrollDelta > pageHeight) {
+      return true
+    }
+
+    // 检查 scrollTop 是否改变（即使小幅变化也需要重绘，因为滚动偏移量会改变）
+    if (scrollDelta > 0) {
+      return true  // 任何滚动变化都触发完全重绘，避免内容重叠
+    }
+
+    return false
   }
 
   /**
@@ -346,6 +585,109 @@ export class G2TableRenderer {
   }
 
   /**
+   * 渲染单行（用于增量更新）
+   */
+  private renderRow(rowIndex: number, y: number, cellHeight: number) {
+    const row = this.visibleRows[rowIndex]
+    if (!row || !this.ctx) return
+
+    const actualRowIndex = this.startIndex + rowIndex
+    const { colors, fonts, spacing } = this.theme
+
+    let originalTotalWidth = 0
+    for (const col of this.columns) {
+      originalTotalWidth += col.width || 120
+    }
+
+    const isStripe = colors.stripe && actualRowIndex % 2 === 1
+
+    // ========== 树形数据支持 ==========
+    const level = this.treeConfig.enabled ? this.getRowLevel(actualRowIndex) : 0
+    const indent = this.treeConfig.enabled ? level * this.treeConfig.indentSize : 0
+
+    // ========== 展开行渲染 ==========
+    // 检查该行是否展开
+    const rowKey = String(row.id || row.key || actualRowIndex)
+    const isExpanded = this.expandConfig.enabled && this.expandConfig.expandedKeys.includes(rowKey)
+
+    this.columns.forEach((col, colIndex) => {
+      const x = this.getColumnX(colIndex) - this.scrollLeft
+      let width = col.width || 120
+
+      // 如果列完全在可视区域外，跳过绘制
+      if (x + width <= 0 || x >= this.width) {
+        return
+      }
+
+      if (colIndex === this.columns.length - 1 && originalTotalWidth < this.width) {
+        width = this.width - (this.getColumnX(colIndex) - this.scrollLeft)
+      }
+
+      const visibleWidth = Math.min(width, this.width - x)
+
+      // 绘制单元格背景
+      this.ctx.fillStyle = isStripe ? (colors.stripe || colors.background) : colors.background
+      this.ctx.fillRect(x, y, visibleWidth, cellHeight)
+
+      // 绘制单元格边框
+      this.ctx.strokeStyle = colors.border
+      this.ctx.lineWidth = spacing.border
+      this.ctx.strokeRect(x, y, visibleWidth, cellHeight)
+
+      // 在第一列绘制展开图标
+      if (colIndex === 0) {
+        const hasExpandIcon = this.expandConfig.enabled || this.treeConfig.enabled
+        if (hasExpandIcon) {
+          // 计算展开图标位置（考虑缩进）
+          const iconX = x + indent + 8
+          const iconY = y + (cellHeight - 12) / 2
+          const hasChildren = this.treeConfig.enabled && (row as any).hasChildren
+          const showExpandIcon = this.expandConfig.enabled || hasChildren
+
+          if (showExpandIcon) {
+            this.renderExpandIcon(iconX, iconY, cellHeight, isExpanded)
+          }
+        }
+      }
+
+      // 检查是否是复选框列
+      if (col.key === '__checkbox__') {
+        // 绘制复选框
+        const checkboxX = x + (visibleWidth - 16) / 2
+        const checkboxY = y + (cellHeight - 16) / 2
+        const isChecked = this.selectedRows.has(actualRowIndex)
+        this.checkboxRenderer.draw(this.ctx, checkboxX, checkboxY, isChecked)
+      } else {
+        // 绘制文字
+        this.ctx.font = `normal ${fonts.cell.weight} ${parseInt(fonts.cell.size)}px "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+        this.ctx.fillStyle = colors.text
+        this.ctx.textAlign = col.align || 'left'
+        this.ctx.textBaseline = 'middle'
+
+        const dataValue = row[col.dataIndex || col.key]
+        const text = col.render ? col.render(row, actualRowIndex, col) : String(dataValue ?? '')
+
+        // 计算文字偏移（展开图标 + 缩进）
+        let textOffset = 0
+        if (colIndex === 0) {
+          if (this.expandConfig.enabled || this.treeConfig.enabled) {
+            textOffset = indent + 24  // 缩进 + 图标宽度 + padding
+          }
+        }
+
+        const fittedText = this.fitText(text, visibleWidth - spacing.padding * 2 - textOffset)
+        const textX = this.getTextX(x, visibleWidth, col.align || 'left', spacing.padding) + textOffset
+        this.ctx.fillText(fittedText, textX, y + cellHeight / 2)
+      }
+    })
+
+    // 如果展开且配置了渲染函数，渲染展开内容
+    if (isExpanded && this.expandConfig.expandedRowRender) {
+      this.renderExpandedRow(rowIndex, y + cellHeight, row)
+    }
+  }
+
+  /**
    * 渲染数据行
    */
   private renderVisibleRows(headerHeight: number, cellHeight: number) {
@@ -356,12 +698,46 @@ export class G2TableRenderer {
       originalTotalWidth += col.width || 120
     }
 
+    // 计算滚动偏移量：scrollTop 可能不在单元格边界上
+    const scrollTop = this.lastScrollTop
+    const scrollOffset = scrollTop % cellHeight
+
+    // 计算当前滚动位置对应的第一个可见行（相对于整个数据集）
+    const firstVisibleRowIndex = Math.floor(scrollTop / cellHeight)
+
+    // visibleRows 的起始行是 startIndex，所以第一行（rowIndex=0）对应第 startIndex 行
+    // 第一个真正可见的行在 visibleRows 中的索引是：firstVisibleRowIndex - startIndex
+    const firstVisibleRowOffset = firstVisibleRowIndex - this.startIndex
+
     this.visibleRows.forEach((row: any, rowIndex: number) => {
       const actualRowIndex = this.startIndex + rowIndex
-      const y = headerHeight + rowIndex * cellHeight
 
+      // 计算当前行相对于第一个可见行的偏移
+      // 例如：如果 firstVisibleRowOffset = 10，当前 rowIndex = 10，则 relativeOffset = 0
+      const relativeOffset = rowIndex - firstVisibleRowOffset
+
+      // 计算 Y 坐标：从表头下方开始，加上相对偏移，减去滚动偏移
+      const y = headerHeight + relativeOffset * cellHeight - scrollOffset
+
+      // 如果行超出底部，跳过
       if (y >= this.height) {
         return
+      }
+
+      // 如果行完全在表头下方（被表头遮挡），跳过
+      if (y + cellHeight <= headerHeight) {
+        return
+      }
+
+      // 如果行顶部在表头下方，但行顶部在可视区域内，需要裁剪绘制
+      // 计算实际绘制的 Y 坐标和高度
+      let actualY = y
+      let actualHeight = cellHeight
+
+      if (y < headerHeight) {
+        // 行被表头遮挡，从 headerHeight 开始绘制
+        actualY = headerHeight
+        actualHeight = cellHeight - (headerHeight - y)
       }
 
       const isStripe = colors.stripe && actualRowIndex % 2 === 1
@@ -383,18 +759,18 @@ export class G2TableRenderer {
 
         // 绘制单元格背景
         this.ctx.fillStyle = isStripe ? (colors.stripe || colors.background) : colors.background
-        this.ctx.fillRect(x, y, visibleWidth, cellHeight)
+        this.ctx.fillRect(x, actualY, visibleWidth, actualHeight)
 
         // 绘制单元格边框
         this.ctx.strokeStyle = colors.border
         this.ctx.lineWidth = spacing.border
-        this.ctx.strokeRect(x, y, visibleWidth, cellHeight)
+        this.ctx.strokeRect(x, actualY, visibleWidth, actualHeight)
 
         // 检查是否是复选框列
         if (col.key === '__checkbox__') {
           // 绘制复选框
           const checkboxX = x + (visibleWidth - 16) / 2
-          const checkboxY = y + (cellHeight - 16) / 2
+          const checkboxY = actualY + (actualHeight - 16) / 2
           const isChecked = this.selectedRows.has(actualRowIndex)
           this.checkboxRenderer.draw(this.ctx, checkboxX, checkboxY, isChecked)
         } else {
@@ -409,7 +785,7 @@ export class G2TableRenderer {
 
           const fittedText = this.fitText(text, visibleWidth - spacing.padding * 2)
           const textX = this.getTextX(x, visibleWidth, col.align || 'left', spacing.padding)
-          this.ctx.fillText(fittedText, textX, y + cellHeight / 2)
+          this.ctx.fillText(fittedText, textX, actualY + actualHeight / 2)
         }
       })
     })
@@ -425,23 +801,44 @@ export class G2TableRenderer {
     const gridLineWidth = Math.min(totalWidth, this.width)
     const maxVisibleY = this.height
 
-    for (let localRowIndex = 0; localRowIndex < this.visibleRows.length - 1; localRowIndex++) {
-      const y = headerHeight + (localRowIndex + 1) * cellHeight
+    // 获取滚动偏移量
+    const scrollTop = this.lastScrollTop
+    const scrollOffset = scrollTop % cellHeight
 
-      if (y < maxVisibleY) {
-        this.ctx.strokeStyle = colors.border
-        this.ctx.lineWidth = spacing.border
-        this.ctx.beginPath()
-        // 应用横向滚动偏移
-        this.ctx.moveTo(-this.scrollLeft, y)
-        this.ctx.lineTo(gridLineWidth - this.scrollLeft, y)
-        this.ctx.stroke()
-      }
+    // 计算当前滚动位置对应的第一个可见行（相对于整个数据集）
+    const firstVisibleRowIndex = Math.floor(scrollTop / cellHeight)
+
+    // visibleRows 的起始行是 startIndex
+    const firstVisibleRowOffset = firstVisibleRowIndex - this.startIndex
+
+    // 只绘制可视区域内的网格线
+    // 计算可视区域最多能显示多少行
+    const visibleRowCount = Math.ceil((this.height - headerHeight) / cellHeight)
+
+    for (let i = 0; i < visibleRowCount; i++) {
+      // 计算网格线的 Y 坐标
+      const relativeOffset = i - firstVisibleRowOffset
+      const y = headerHeight + (i + 1) * cellHeight - scrollOffset
+
+      // 跳过被表头遮挡的线
+      if (y < headerHeight) continue
+
+      // 跳过超出可视区域的线
+      if (y >= maxVisibleY) continue
+
+      this.ctx.strokeStyle = colors.border
+      this.ctx.lineWidth = spacing.border
+      this.ctx.beginPath()
+      // 应用横向滚动偏移
+      this.ctx.moveTo(-this.scrollLeft, y)
+      this.ctx.lineTo(gridLineWidth - this.scrollLeft, y)
+      this.ctx.stroke()
     }
 
-    // 表格底部边框
-    const bottomY = headerHeight + this.visibleRows.length * cellHeight
-    if (bottomY < this.height) {
+    // 表格底部边框 - 只在数据行未填满整个容器时显示
+    const lastVisibleRowOffset = this.visibleRows.length - 1 - firstVisibleRowOffset
+    const bottomY = headerHeight + (lastVisibleRowOffset + 1) * cellHeight - scrollOffset
+    if (bottomY < this.height && bottomY >= headerHeight) {
       this.ctx.strokeStyle = colors.border
       this.ctx.lineWidth = spacing.border
       this.ctx.beginPath()
@@ -623,6 +1020,77 @@ export class G2TableRenderer {
   }
 
   // ============================================================================
+  // 展开行相关
+  // ============================================================================
+
+  /**
+   * 绘制展开/收起图标
+   */
+  private renderExpandIcon(x: number, y: number, cellHeight: number, isExpanded: boolean) {
+    if (!this.ctx) return
+
+    const iconSize = 12
+    const iconX = x + 8  // 左侧padding
+    const iconY = y + (cellHeight - iconSize) / 2
+
+    this.ctx.save()
+    this.ctx.translate(iconX + iconSize / 2, iconY + iconSize / 2)
+
+    // 如果展开，旋转90度
+    if (isExpanded) {
+      this.ctx.rotate(Math.PI / 2)
+    }
+
+    this.ctx.strokeStyle = this.theme.colors.text
+    this.ctx.lineWidth = 1.5
+    this.ctx.lineCap = 'round'
+    this.ctx.lineJoin = 'round'
+
+    // 绘制向右的箭头（类似 > 形状）
+    this.ctx.beginPath()
+    this.ctx.moveTo(-iconSize / 4, -iconSize / 3)
+    this.ctx.lineTo(iconSize / 4, 0)
+    this.ctx.lineTo(-iconSize / 4, iconSize / 3)
+    this.ctx.stroke()
+
+    this.ctx.restore()
+  }
+
+  /**
+   * 渲染展开的内容
+   */
+  private renderExpandedRow(rowIndex: number, y: number, row: any) {
+    if (!this.ctx || !this.expandConfig.expandedRowRender) return
+
+    const { colors, spacing } = this.theme
+    const expandHeight = 100  // 展开行的高度，可以根据内容动态计算
+
+    // 绘制展开行背景
+    this.ctx.fillStyle = colors.hover || '#f5f5f5'
+    this.ctx.fillRect(0, y, this.width, expandHeight)
+
+    // 绘制展开行边框
+    this.ctx.strokeStyle = colors.border
+    this.ctx.lineWidth = spacing.border
+    this.ctx.strokeRect(0, y, this.width, expandHeight)
+
+    // 调用展开行渲染函数
+    // 注意：这里简化了，实际应该渲染到 Canvas 上
+    // 由于 expandedRowRender 可能返回 VNode，需要特殊处理
+    // 这里暂时只绘制占位符
+
+    this.ctx.fillStyle = colors.text
+    this.ctx.font = '14px "PingFang SC", sans-serif'
+    this.ctx.textAlign = 'left'
+    this.ctx.textBaseline = 'top'
+    this.ctx.fillText(
+      `展开内容: ${JSON.stringify(row).substring(0, 50)}...`,
+      spacing.padding,
+      y + spacing.padding
+    )
+  }
+
+  // ============================================================================
   // 排序相关
   // ============================================================================
 
@@ -702,6 +1170,28 @@ export class G2TableRenderer {
   clearSelection() {
     this.selectedRows.clear()
     this.render()
+  }
+
+  setSelectedRows(rowKeys: string[], getRowKey: (row: any) => string) {
+    console.log('🔧 setSelectedRows 被调用:', { rowKeys: rowKeys.length, dataLength: this.data.length });
+
+    this.selectedRows.clear()
+
+    // 根据行数据查找对应的索引
+    for (let i = 0; i < this.data.length; i++) {
+      const row = this.data[i]
+      const key = getRowKey(row)
+      if (rowKeys.includes(key)) {
+        this.selectedRows.add(i)
+      }
+    }
+
+    console.log('✅ selectedRows 已更新:', this.selectedRows.size, '行被选中');
+
+    // 强制完全重绘（因为 detectChanges 不会检测 selectedRows 的变化）
+    const headerHeight = this.theme.spacing.header
+    const cellHeight = this.theme.spacing.cell
+    this.fullRender(headerHeight, cellHeight)
   }
 
   getSelectedRows(): number[] {

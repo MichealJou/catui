@@ -5,9 +5,11 @@ export class VirtualScroll {
   private scrollTop: number = 0
   private totalItems: number = 0
   private containerHeight: number = 0
+  private bufferSize: number = 10 // 上下各缓冲10行，防止快速滚动白屏和内容重叠
 
-  constructor(itemSize: number) {
+  constructor(itemSize: number, bufferSize: number = 10) {
     this.itemSize = itemSize
+    this.bufferSize = bufferSize
   }
 
   setDataCount(count: number) {
@@ -36,11 +38,19 @@ export class VirtualScroll {
 
   getVisibleRange(containerHeight: number): { startIndex: number; endIndex: number } {
     const visibleCount = Math.ceil(containerHeight / this.itemSize)
-    let startIndex = Math.floor(this.scrollTop / this.itemSize)
-    let endIndex = startIndex + visibleCount
+    const startRowIndex = Math.floor(this.scrollTop / this.itemSize)
 
-    if (endIndex > this.totalItems) {
-      endIndex = this.totalItems
+    // 计算带缓冲区的起始和结束索引
+    // 向上扩展缓冲区，向下扩展更多缓冲区（因为用户通常向下滚动）
+    let startIndex = Math.max(0, startRowIndex - this.bufferSize)
+    let endIndex = Math.min(
+      this.totalItems,
+      startRowIndex + visibleCount + this.bufferSize
+    )
+
+    // 确保 endIndex 不会小于 startIndex
+    if (endIndex <= startIndex) {
+      endIndex = Math.min(this.totalItems, startIndex + visibleCount + this.bufferSize * 2)
     }
 
     return { startIndex, endIndex }

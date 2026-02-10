@@ -52,12 +52,21 @@ export interface SorterConfig {
 
 export interface PaginationConfig {
   current?: number
+  defaultCurrent?: number
   pageSize?: number
+  defaultPageSize?: number
   total?: number
+  disabled?: boolean
   showSizeChanger?: boolean
   showQuickJumper?: boolean
-  showTotal?: (total: number) => string
+  showTotal?: (total: number, range: [number, number]) => string
   pageSizeOptions?: number[]
+  simple?: boolean
+  size?: 'small' | 'default' | ''
+  hideOnSinglePage?: boolean
+  showLessItems?: boolean
+  prevText?: string
+  nextText?: string
   onChange?: (page: number, pageSize: number) => void
   onShowSizeChange?: (current: number, size: number) => void
 }
@@ -232,7 +241,7 @@ export interface CTableProps {
 
   // === 树形数据属性 ===
   childrenColumnName?: string
-  defaultExpandAllRows?: boolean
+  // defaultExpandAllRows 已在上面定义，这里不需要重复
   indentSize?: number
 
   // === 排序/筛选变化 ===
@@ -251,6 +260,32 @@ export interface CTableProps {
     order: SortOrder
     sorter?: (a: any, b: any) => number
   }>
+
+  // === 组件适配器配置 ===
+  /**
+   * 组件适配器配置
+   * @example
+   * ```ts
+   * // 使用 ant-design-vue（默认）
+   * adapter: { library: 'ant-design-vue' }
+   *
+   * // 使用内置默认组件
+   * adapter: { library: 'default' }
+   *
+   * // 强制使用自定义适配器
+   * adapter: {
+   *   forceCustom: true,
+   *   customAdapters: {
+   *     pagination: myCustomAdapter
+   *   }
+   * }
+   * ```
+   */
+  adapter?: {
+    library?: 'ant-design-vue' | 'element-plus' | 'naive-ui' | 'default'
+    forceCustom?: boolean
+    customAdapters?: any
+  }
 }
 
 // ============================================================================

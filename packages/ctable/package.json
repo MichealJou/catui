@@ -10,6 +10,12 @@
     "dist",
     "src"
   ],
+  "scripts": {
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
   "keywords": [
     "table",
     "canvas",
@@ -21,15 +27,35 @@
   "author": "CatUI Team",
   "license": "MIT",
   "peerDependencies": {
+    "ant-design-vue": "^4.0.0",
+    "element-plus": "^2.4.0",
+    "naive-ui": "^2.34.0",
     "vue": "^3.4.0"
+  },
+  "peerDependenciesMeta": {
+    "ant-design-vue": {
+      "optional": true
+    },
+    "element-plus": {
+      "optional": true
+    },
+    "naive-ui": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@antv/g2": "^5.4.8"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@vitejs/plugin-vue": "^4.6.2",
+    "@vitest/ui": "^4.0.18",
+    "@vue/test-utils": "^2.4.6",
+    "faker": "^5.5.3",
+    "happy-dom": "^20.6.0",
     "typescript": "^5.0.0",
     "vite": "^5.0.0",
+    "vitest": "^4.0.18",
     "vue": "^3.4.0"
   }
 }

@@ -3,13 +3,63 @@
     ref="containerRef"
     class="ctable-container"
     :style="containerStyle"
+    @mouseenter="isHovering = true"
+    @mouseleave="isHovering = false"
   >
+    <!-- 加载遮罩 -->
+    <component
+      :is="loadingComponent"
+      v-if="isLoading"
+      :spinning="true"
+      :tip="loadingTip"
+      :size="'default'"
+    />
+
     <canvas
       ref="canvasRef"
       class="ctable-canvas"
       :width="width"
       :height="height"
     />
+    <!-- 分页器容器 -->
+    <div v-if="effectivePagination" ref="paginationRef" class="ctable-pagination-wrapper">
+      <CPagination
+        :current="currentPage"
+        :default-current="effectivePagination.current"
+        :page-size="pageSize"
+        :default-page-size="effectivePagination.pageSize"
+        :total="total"
+        :show-size-changer="effectivePagination.showSizeChanger"
+        :show-quick-jumper="effectivePagination.showQuickJumper"
+        :show-total="effectivePagination.showTotal"
+        :page-size-options="effectivePagination.pageSizeOptions"
+        :simple="effectivePagination.simple"
+        :size="effectivePagination.size"
+        :hide-on-single-page="effectivePagination.hideOnSinglePage"
+        :show-less-items="effectivePagination.showLessItems"
+        :prev-text="effectivePagination.prevText"
+        :next-text="effectivePagination.nextText"
+        @change="handlePageChange"
+        @show-size-change="handlePageSizeChange"
+      >
+        <!-- 分页插槽支持 -->
+        <template v-if="$slots['pagination-total']" #total="slotProps">
+          <slot name="pagination-total" v-bind="slotProps"></slot>
+        </template>
+        <template v-if="$slots['pagination-prev']" #prev="slotProps">
+          <slot name="pagination-prev" v-bind="slotProps"></slot>
+        </template>
+        <template v-if="$slots['pagination-next']" #next="slotProps">
+          <slot name="pagination-next" v-bind="slotProps"></slot>
+        </template>
+        <template v-if="$slots['pagination-prev-text']" #prevText>
+          <slot name="pagination-prev-text"></slot>
+        </template>
+        <template v-if="$slots['pagination-next-text']" #nextText>
+          <slot name="pagination-next-text"></slot>
+        </template>
+      </CPagination>
+    </div>
     <!-- 纵向滚动条 -->
     <div
       v-if="showScrollbar"
@@ -45,14 +95,21 @@ import {
   computed,
   watch,
   nextTick,
+  useSlots,
   type CSSProperties,
 } from "vue";
-import type { CTableProps, Column, SortOrder, FilterCondition, ThemePreset } from "../types";
+import type { CTableProps, Column, SortOrder, FilterCondition, ThemePreset, PaginationConfig } from "../types";
 import { G2TableRenderer } from "../core/G2TableRenderer";
+import { G2TableRendererV2 } from "../core/G2TableRendererV2";
 import { useVirtualScroll } from "../core/VirtualScroll";
 import { useThemeManager, DEFAULT_THEME } from "../core/ThemeManager";
 import { SortManager } from "../core/SortManager";
 import { FilterManager } from "../core/FilterManager";
+import { PaginationManager } from "../core/PaginationManager";
+// 导入内置 CPagination
+import CPagination from "./CPagination.vue";
+// 导入加载适配器
+import { createLoadingComponent } from "../adapters/AdapterFactory";
 
 defineOptions({
   name: "CTable",
@@ -65,6 +122,7 @@ const props = withDefaults(defineProps<CTableProps>(), {
   virtualScroll: true,
   selectable: false,
   selectableType: "single",
+  rowSelection: undefined,
 });
 
 const emit = defineEmits<{
@@ -74,10 +132,13 @@ const emit = defineEmits<{
   scroll: [event: any];
   "sort-change": [field: string, order: SortOrder];
   "filter-change": [filters: FilterCondition[]];
+  expand: [expanded: boolean, record: any];
+  change: [pagination: any, filters: any, sorter: any];
 }>();
 
 const containerRef = ref<HTMLDivElement>();
 const canvasRef = ref<HTMLCanvasElement>();
+const paginationRef = ref<HTMLDivElement>();
 
 // 主题管理器 - 支持预设或自定义主题
 const initialTheme = props.theme || DEFAULT_THEME
@@ -90,10 +151,51 @@ if (typeof props.theme === 'string') {
   setTheme(props.theme)
 }
 
-const renderer = ref<G2TableRenderer>();
+// 渲染器实例（支持旧版 G2TableRenderer 和新版 G2TableRendererV2）
+const renderer = ref<G2TableRenderer | G2TableRendererV2>();
 const virtualScroll = useVirtualScroll(getTheme().spacing.cell);
 const sortManager = new SortManager();
 const filterManager = new FilterManager();
+
+// ========== 分页功能 ==========
+const paginationManager = ref<PaginationManager | null>(null);
+const currentPage = ref(1);
+const pageSize = ref(10);
+const total = ref(0);
+
+// ========== 加载状态 ==========
+const isLoading = ref(false);
+const loadingTip = ref('加载中...');
+
+// 鼠标悬停状态（用于控制滚动条显示）
+const isHovering = ref(false);
+
+// 创建加载组件（使用适配器）- 延迟创建，在 onMounted 中初始化
+const loadingComponent = ref<any>(null);
+
+const effectivePagination = computed(() => {
+  if (props.pagination === false) return false;
+
+  const defaultConfig = {
+    current: 1,
+    pageSize: 10,
+    total: total.value,
+    showSizeChanger: true,
+    showQuickJumper: true,
+    pageSizeOptions: [10, 20, 50, 100],
+    simple: false,
+    size: '',
+    hideOnSinglePage: false,
+    showLessItems: false,
+    prevText: undefined,
+    nextText: undefined
+  } as PaginationConfig;
+
+  return { ...defaultConfig, ...props.pagination };
+});
+
+// ========== 分页功能 ==========
+
 
 const selectedRows = ref<any[]>([]);
 const hoveredCell = ref<any>(null);
@@ -112,6 +214,34 @@ const hScrollbarDragStartScrollLeft = ref(0);
 // 兼容 dataSource 和 data 两种属性名
 const tableData = computed(() => props.data || props.dataSource || []);
 
+// 计算分页后的数据
+const paginatedData = computed(() => {
+  // 如果启用虚拟滚动，禁用分页，返回全部数据
+  if (props.virtualScroll) {
+    console.log('📊 虚拟滚动已启用，禁用分页，返回全部数据:', tableData.value.length);
+    return tableData.value;
+  }
+
+  // 如果禁用分页，返回全部数据
+  if (props.pagination === false || !effectivePagination.value) {
+    console.log('📊 分页禁用或未配置，返回全部数据:', tableData.value.length);
+    return tableData.value;
+  }
+
+  const start = (currentPage.value - 1) * pageSize.value;
+  const end = start + pageSize.value;
+  const slicedData = tableData.value.slice(start, end);
+  console.log('📊 分页数据计算:', {
+    total: tableData.value.length,
+    start,
+    end,
+    currentPage: currentPage.value,
+    pageSize: pageSize.value,
+    slicedLength: slicedData.length
+  });
+  return slicedData;
+});
+
 // 辅助函数：获取列宽（转为数字）
 const getColumnWidth = (col: Column): number => {
   const width = col.width || 120;
@@ -126,6 +256,134 @@ const getRowKey = (row: any): string => {
   return String(row[props.rowKey || 'id']);
 };
 
+// 计算实际的选择类型（单选/多选）
+const effectiveSelectableType = computed<'single' | 'multiple'>(() => {
+  if (props.rowSelection) {
+    return props.rowSelection.type === 'checkbox' ? 'multiple' : 'single';
+  }
+  return props.selectableType;
+});
+
+// ========== 展开行功能 ==========
+// 展开的行键集合
+const expandedKeys = ref<Set<string>>(new Set(props.expandedRowKeys || []));
+
+// 切换行的展开状态
+const toggleExpand = (rowKey: string) => {
+  const isExpanding = !expandedKeys.value.has(rowKey)
+
+  if (expandedKeys.value.has(rowKey)) {
+    expandedKeys.value.delete(rowKey);
+  } else {
+    expandedKeys.value.add(rowKey);
+  }
+
+  // 触发 expand 事件
+  const row = tableData.value.find(r => getRowKey(r) === rowKey);
+  emit("expand", isExpanding, row);
+
+  // 如果是树形数据，更新扁平化数据
+  const childrenColumnName = props.childrenColumnName || 'children'
+  if (row && row[childrenColumnName]) {
+    updateFlatData()
+  }
+
+  // 更新渲染器的展开行配置
+  if (renderer.value && props.expandedRowRender) {
+    (renderer.value as any).updateExpandedKeys(getExpandedKeys());
+  }
+
+  // 触发 change 事件（兼容 a-table）
+  if (props.onChange) {
+    props.onChange({}, {}, {});
+  }
+
+  // 重新渲染表格
+  renderTable();
+};
+
+// 检查行是否展开
+const isRowExpanded = (rowKey: string): boolean => {
+  return expandedKeys.value.has(rowKey);
+};
+
+// 获取所有展开的行键
+const getExpandedKeys = (): string[] => {
+  return Array.from(expandedKeys.value);
+};
+
+// ========== 树形数据支持 ==========
+// 扁平化树形数据，添加层级信息
+interface FlatNode {
+  data: any
+  key: string
+  level: number
+  parentKey: string | null
+  hasChildren: boolean
+  index: number
+}
+
+const flatData = ref<FlatNode[]>([])
+const dataKeyMap = ref<Map<string, FlatNode>>(new Map())
+
+// 扁平化树形数据
+const flattenTreeData = (
+  data: any[],
+  parentKey: string | null = null,
+  level: number = 0,
+  startIndex: number = 0
+): { flat: FlatNode[], count: number } => {
+  const flat: FlatNode[] = []
+  let count = 0
+
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i]
+    const key = getRowKey(row)
+    const childrenColumnName = props.childrenColumnName || 'children'
+    const children = row[childrenColumnName] as any[]
+
+    const node: FlatNode = {
+      data: row,
+      key,
+      level,
+      parentKey,
+      hasChildren: children && children.length > 0,
+      index: startIndex + count
+    }
+
+    flat.push(node)
+    count++
+
+    // 如果有子节点且父节点是展开的，递归处理
+    if (children && children.length > 0 && expandedKeys.value.has(key)) {
+      const childResult = flattenTreeData(
+        children,
+        key,
+        level + 1,
+        startIndex + count
+      )
+      flat.push(...childResult.flat)
+      count += childResult.count
+    }
+  }
+
+  return { flat, count }
+}
+
+// 更新扁平化数据
+const updateFlatData = () => {
+  const data = tableData.value || []
+  const result = flattenTreeData(data)
+  flatData.value = result.flat
+
+  // 构建键值映射
+  const map = new Map<string, FlatNode>()
+  result.flat.forEach(node => {
+    map.set(node.key, node)
+  })
+  dataKeyMap.value = map
+}
+
 const containerStyle = computed<CSSProperties>(() => ({
   width: `${props.width}px`,
   height: `${props.height}px`,
@@ -136,9 +394,15 @@ const containerStyle = computed<CSSProperties>(() => ({
 
 // 是否显示滚动条
 const showScrollbar = computed(() => {
-  if (!props.virtualScroll || !tableData.value || !tableData.value.length) return false;
-  const totalHeight = tableData.value.length * getTheme().spacing.cell;
-  const containerHeight = props.height - getTheme().spacing.header;
+  if (!props.virtualScroll || !paginatedData.value || !paginatedData.value.length) return false;
+
+  let paginationHeight = 0;
+  if (!props.virtualScroll) {
+    paginationHeight = paginationRef.value?.offsetHeight || (effectivePagination ? 60 : 0);
+  }
+
+  const totalHeight = paginatedData.value.length * getTheme().spacing.cell;
+  const containerHeight = props.height - getTheme().spacing.header - paginationHeight;
   return totalHeight > containerHeight;
 });
 
@@ -146,12 +410,19 @@ const showScrollbar = computed(() => {
 const scrollbarStyle = computed<CSSProperties>(() => {
   // 表格已完全填充容器宽度（最后一列自动扩展）
   // 滚动条紧贴容器右边缘，与 ant-design-vue 表格样式一致
+  const headerHeight = getTheme().spacing.header;
+  let paginationHeight = 0;
+  if (!props.virtualScroll) {
+    paginationHeight = paginationRef.value?.offsetHeight || (effectivePagination ? 60 : 0);
+  }
+  const scrollbarHeight = props.height - headerHeight - paginationHeight;
+
   return {
     position: "absolute" as "absolute",
     right: "0px",
-    top: `${getTheme().spacing.header}px`,
+    top: `${headerHeight}px`,
     width: "10px",
-    height: `${props.height - getTheme().spacing.header}px`,
+    height: `${scrollbarHeight}px`,
     backgroundColor: "transparent",
     cursor: "pointer",
   };
@@ -159,7 +430,7 @@ const scrollbarStyle = computed<CSSProperties>(() => {
 
 // 滚动条滑块样式
 const scrollbarThumbStyle = computed<CSSProperties>(() => {
-  if (!tableData.value || !tableData.value.length) {
+  if (!paginatedData.value || !paginatedData.value.length) {
     return {
       position: "absolute" as "absolute",
       top: "0px",
@@ -171,10 +442,16 @@ const scrollbarThumbStyle = computed<CSSProperties>(() => {
     };
   }
 
-  const totalHeight = tableData.value.length * getTheme().spacing.cell;
-  const containerHeight = props.height - getTheme().spacing.header;
+  const headerHeight = getTheme().spacing.header;
+  let paginationHeight = 0;
+  if (!props.virtualScroll) {
+    paginationHeight = paginationRef.value?.offsetHeight || (effectivePagination ? 60 : 0);
+  }
+
+  const totalHeight = paginatedData.value.length * getTheme().spacing.cell;
+  const containerHeight = props.height - headerHeight - paginationHeight;
   const maxScrollTop = Math.max(0, totalHeight - containerHeight);
-  const scrollbarHeight = props.height - getTheme().spacing.header;
+  const scrollbarHeight = props.height - headerHeight - paginationHeight;
   const thumbHeight = Math.max(30, (containerHeight / totalHeight) * scrollbarHeight);
   const thumbTop = (virtualScroll.scrollTop.value / maxScrollTop) * (scrollbarHeight - thumbHeight);
 
@@ -197,7 +474,10 @@ const scrollbarThumbStyle = computed<CSSProperties>(() => {
 // 计算所有列的总宽度
 const columnsTotalWidth = computed(() => {
   const columns = props.columns || [];
-  return columns.reduce((sum, col) => sum + (col.width || 120), 0);
+  return columns.reduce((sum, col) => {
+    const width = col.width || 120;
+    return sum + (typeof width === 'number' ? width : parseInt(width) || 120);
+  }, 0);
 });
 
 // 是否显示横向滚动条
@@ -251,11 +531,43 @@ const hScrollbarThumbStyle = computed<CSSProperties>(() => {
   };
 });
 
-// 先筛选，再排序
-const sortedData = computed(() => {
+// 先筛选，再排序（全部数据）
+const sortedAndFilteredData = computed(() => {
   const data = tableData.value || [];
-  const filtered = filterManager.filterData(data);
-  return sortManager.sortData(filtered);
+
+  // 检查是否是树形数据
+  const childrenColumnName = props.childrenColumnName || 'children'
+  const hasTreeData = data.some(row => row[childrenColumnName] && Array.isArray(row[childrenColumnName]))
+
+  if (hasTreeData) {
+    // 树形数据：使用扁平化数据
+    updateFlatData()
+    return flatData.value.map(node => node.data)
+  } else {
+    // 普通数据
+    const filtered = filterManager.filterData(data);
+    return sortManager.sortData(filtered);
+  }
+});
+
+// 分页后的数据
+const sortedData = computed(() => {
+  const allData = sortedAndFilteredData.value;
+
+  // 如果禁用分页，返回全部数据
+  if (props.pagination === false || !effectivePagination.value) {
+    return allData;
+  }
+
+  // 应用分页
+  const { current, pageSize } = effectivePagination.value;
+  const start = (current - 1) * pageSize;
+  const end = start + pageSize;
+
+  // 更新 total
+  total.value = allData.length;
+
+  return allData.slice(start, end);
 });
 
 const visibleData = computed(() => {
@@ -275,23 +587,139 @@ const initTable = async () => {
   const headerHeight = theme.spacing.header || 55;
 
   // 先保存数据引用
-  const data = tableData.value || [];
+  const data = paginatedData.value || [];
+  const fullData = tableData.value || []; // 完整数据（用于展开行等功能）
   const columns = props.columns || [];
   const dataLength = data.length;
 
-  // 重要：先更新数据计数，再更新容器高度
-  virtualScroll.virtualScroll.setDataCount(dataLength);
-  virtualScroll.containerHeight.value = props.height - headerHeight;
+  // 处理 rowSelection 配置
+  let effectiveSelectable = props.selectable;
 
-  renderer.value = new G2TableRenderer(
-    canvasRef.value,
-    props.width,
-    props.height,
-    theme,
-    props.selectable
-  );
+  // 如果有 rowSelection 配置，优先使用
+  if (props.rowSelection) {
+    effectiveSelectable = true;
+
+    // 初始化选中状态
+    if (props.rowSelection.selectedRowKeys && props.rowSelection.selectedRowKeys.length > 0) {
+      const keys = props.rowSelection.selectedRowKeys;
+      selectedRows.value = fullData.filter(row => keys.includes(getRowKey(row)));
+    }
+  } else {
+    // 检测是否有 __checkbox__ 列，如果有则自动启用 selectable
+    const hasCheckboxColumn = columns.some(col => col.key === '__checkbox__');
+    effectiveSelectable = hasCheckboxColumn || props.selectable;
+  }
+
+  // 重要：先更新数据计数，再更新容器高度
+  // 如果启用虚拟滚动，不考虑分页器高度
+  let paginationHeight = 0;
+  if (!props.virtualScroll) {
+    // 动态获取分页器高度
+    const getPaginationHeight = () => {
+      if (!effectivePagination || !paginationRef.value) {
+        return 0;
+      }
+      return paginationRef.value.offsetHeight;
+    };
+    paginationHeight = getPaginationHeight() || (effectivePagination ? 60 : 0);
+  }
+
+  const containerHeight = props.height - headerHeight - paginationHeight;
+
+  console.log('📏 初始化虚拟滚动:', {
+    dataLength,
+    tableDataLength: tableData.value.length,
+    currentPage: currentPage.value,
+    pageSize: pageSize.value,
+    containerHeight,
+    headerHeight,
+    paginationHeight,
+    paginationRefOffsetHeight: paginationRef.value?.offsetHeight,
+    fullHeight: props.height,
+    hasPagination: !!effectivePagination,
+    virtualScroll: props.virtualScroll
+  });
+  virtualScroll.virtualScroll.setDataCount(dataLength);
+  virtualScroll.containerHeight.value = containerHeight;
+
+  // 初始化展开行状态
+  if (props.expandedRowKeys && props.expandedRowKeys.length > 0) {
+    expandedKeys.value = new Set(props.expandedRowKeys);
+  } else if (props.defaultExpandAllRows) {
+    // 默认展开所有行（使用完整数据）
+    expandedKeys.value = new Set(fullData.map(row => getRowKey(row)));
+  }
+
+  // 根据配置选择渲染器
+  const rendererType = props.renderer || 'g2';  // 默认使用 'g2' (旧版渲染器)
+
+  if (rendererType === 'g2') {
+    // 使用旧版 G2TableRenderer (原生 Canvas)
+    console.log('🎨 使用 G2TableRenderer (原生 Canvas)');
+    renderer.value = new G2TableRenderer(
+      canvasRef.value!,
+      props.width,
+      props.height,
+      theme,
+      effectiveSelectable
+    );
+  } else {
+    // 使用新版 G2TableRendererV2 (G2 Mark API)
+    console.log('🎨 使用 G2TableRendererV2 (G2 Mark API)');
+    renderer.value = new G2TableRendererV2(
+      containerRef.value!,
+      props.width,
+      props.height,
+      theme,
+      effectiveSelectable
+    );
+  }
 
   renderer.value.setData(data, columns);
+
+  // 设置展开行配置
+  if (props.expandedRowRender) {
+    (renderer.value as any).setExpandConfig({
+      expandedKeys: getExpandedKeys(),
+      expandedRowRender: props.expandedRowRender,
+      expandRowByClick: props.expandRowByClick || false
+    });
+  }
+
+  // 配置树形数据
+  const childrenColumnName = props.childrenColumnName || 'children'
+  const hasTreeData = data.some(row => row[childrenColumnName])
+  if (hasTreeData) {
+    const indentSize = typeof props.indentSize === 'number' ? props.indentSize : 20
+    ;(renderer.value as any).setTreeConfig(true, indentSize)
+
+    // 设置每行的层级
+    flatData.value.forEach(node => {
+      ;(renderer.value as any).setRowLevel(node.index, node.level)
+    })
+  }
+
+  // ========== 初始化分页管理器 ==========
+  if (effectivePagination.value) {
+    const paginationConfig = {
+      current: effectivePagination.value.current || 1,
+      pageSize: effectivePagination.value.pageSize || 10,
+      total: data.length,
+      pageSizeOptions: effectivePagination.value.pageSizeOptions || [10, 20, 50, 100],
+      onChange: handlePageChange,
+      onShowSizeChange: handlePageSizeChange
+    };
+
+    paginationManager.value = new PaginationManager(paginationConfig, data);
+    currentPage.value = paginationConfig.current;
+    pageSize.value = paginationConfig.pageSize;
+    total.value = data.length;
+
+    console.log('✅ 分页管理器已初始化:', paginationConfig);
+    console.log('✅ 分页数据:', { current: currentPage.value, pageSize: pageSize.value, total: total.value });
+  } else {
+    console.log('⚠️ 分页未启用: effectivePagination =', effectivePagination.value);
+  }
 
   bindEvents();
 
@@ -300,6 +728,27 @@ const initTable = async () => {
 
   // 强制更新一次 visibleRange
   renderTable();
+
+  // 如果有分页器，等待分页器渲染完成后重新计算容器高度
+  if (effectivePagination) {
+    await nextTick();
+
+    // 重新获取分页器实际高度
+    const actualPaginationHeight = paginationRef.value?.offsetHeight || 60;
+    const actualContainerHeight = props.height - headerHeight - actualPaginationHeight;
+
+    console.log('📏 分页器渲染后重新计算:', {
+      paginationHeight: actualPaginationHeight,
+      containerHeight: actualContainerHeight,
+      oldContainerHeight: containerHeight
+    });
+
+    // 更新容器高度
+    virtualScroll.containerHeight.value = actualContainerHeight;
+
+    // 重新渲染表格
+    renderTable();
+  }
 };
 
 const bindEvents = () => {
@@ -337,7 +786,14 @@ const handleClick = (event: MouseEvent) => {
           // 全选
           selectedRows.value = [...data];
         }
-        emit("selection-change", selectedRows.value, []);
+
+        // 同步到渲染器
+        const keys = selectedRows.value.map(row => getRowKey(row));
+        if (renderer.value) {
+          (renderer.value as any).setSelectedRows(keys, getRowKey);
+        }
+
+        emit("selection-change", selectedRows.value, keys);
         return;
       }
 
@@ -407,8 +863,10 @@ const handleClick = (event: MouseEvent) => {
   if (cell && cell.row !== undefined && cell.type === "cell") {
     // 检查是否点击了复选框列
     if (cell.column && cell.column.key === '__checkbox__') {
+      console.log('🎯 点击了复选框列!', { row: cell.row, column: cell.column });
+
       // 切换该行的选择状态
-      if (props.selectableType === "single") {
+      if (effectiveSelectableType.value === "single") {
         const rowData = sortedData.value[cell.row];
         if (selectedRows.value.length === 1 && selectedRows.value[0] === rowData) {
           selectedRows.value = [];
@@ -430,6 +888,14 @@ const handleClick = (event: MouseEvent) => {
 
       // 手动触发 selection-change 事件
       const keys = selectedRows.value.map(row => getRowKey(row));
+
+      // 同步到渲染器
+      if (renderer.value) {
+        console.log('🔄 同步选中状态到渲染器:', keys);
+        (renderer.value as any).setSelectedRows(keys, getRowKey);
+      }
+
+      console.log('✅ 触发 selection-change 事件:', { count: selectedRows.value.length, keys });
       emit("selection-change", selectedRows.value, keys);
       return;
     }
@@ -437,8 +903,29 @@ const handleClick = (event: MouseEvent) => {
     emit("cell-click", { cell, originalEvent: event });
     emit("row-click", { row: cell.row, data: sortedData.value[cell.row] });
 
+    // ========== 展开行处理 ==========
+    // 展开图标在第一列的左侧
+    if (props.expandedRowRender && cell.colIndex === 0) {
+      const rowData = sortedData.value[cell.row];
+      const rowKey = getRowKey(rowData);
+
+      // 检查是否点击了展开图标区域（左侧28像素）
+      if (event.offsetX <= 28) {
+        toggleExpand(rowKey);
+        return;
+      }
+    }
+
+    // 如果配置了 expandRowByClick，点击整行都可以展开
+    if (props.expandRowByClick && props.expandedRowRender) {
+      const rowData = sortedData.value[cell.row];
+      const rowKey = getRowKey(rowData);
+      toggleExpand(rowKey);
+      return;
+    }
+
     if (props.selectable) {
-      if (props.selectableType === "single") {
+      if (effectiveSelectableType.value === "single") {
         const rowData = sortedData.value[cell.row];
         selectedRows.value = [rowData];
       } else {
@@ -577,6 +1064,136 @@ const handleSort = (column: Column) => {
   renderTable();
 };
 
+const handleFilter = (column: Column) => {
+  // 检查当前是否有筛选条件
+  const currentFilter = filterManager.getFilter(column.key);
+
+  if (currentFilter) {
+    // 如果有筛选，清除它
+    filterManager.clearFilter(column.key);
+  } else {
+    // 如果没有筛选，设置一个默认的"包含"筛选
+    // 这里简化处理，实际应用中可能需要弹出筛选对话框
+    filterManager.setFilter({
+      field: column.key,
+      type: 'contains',
+      value: ''  // 空值会清除筛选
+    });
+  }
+
+  // 更新渲染器的筛选状态（用于显示筛选图标）
+  if (renderer.value) {
+    const isActive = filterManager.getFilter(column.key) !== undefined;
+    (renderer.value as any).setFilterState(column.key, isActive);
+  }
+
+  // 触发筛选变化事件
+  emit("filter-change", filterManager.getAllFilters());
+
+  // 重新渲染表格
+  renderTable();
+};
+
+// ========== 分页事件处理 ==========
+const handlePageChange = async (page: number, pageSize: number) => {
+  console.log('📄 分页变化:', { page, pageSize });
+
+  // 显示加载状态
+  isLoading.value = true;
+
+  if (paginationManager.value) {
+    paginationManager.value.goToPage(page);
+  }
+
+  // 更新当前页
+  currentPage.value = page;
+
+  // 触发 change 事件（兼容 a-table）
+  if (props.onChange) {
+    const pagination = { current: page, pageSize, total: total.value };
+    props.onChange(pagination, {}, {});
+  }
+
+  // 等待 Vue 响应式更新完成后再渲染
+  await nextTick();
+
+  // 等待一小段时间模拟异步加载，让用户看到加载状态
+  // 如果数据是从服务器异步获取的，这里应该等待数据加载完成
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  // 重新渲染表格数据
+  renderTable();
+
+  // 再等待一帧确保 Canvas 渲染完成
+  await nextTick();
+
+  // 隐藏加载状态
+  isLoading.value = false;
+};
+
+const handlePageSizeChange = async (current: number, size: number) => {
+  console.log('📄 每页条数变化:', { current, size });
+
+  // 显示加载状态
+  isLoading.value = true;
+
+  if (paginationManager.value) {
+    paginationManager.value.changePageSize(size);
+  }
+
+  // 更新每页条数
+  pageSize.value = size;
+
+  // 触发 change 事件（兼容 a-table）
+  if (props.onChange) {
+    const pagination = { current, pageSize: size, total: total.value };
+    props.onChange(pagination, {}, {});
+  }
+
+  // 等待 Vue 响应式更新完成后再渲染
+  await nextTick();
+
+  // 等待一小段时间模拟异步加载，让用户看到加载状态
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  // 重新渲染表格数据
+  renderTable();
+
+  // 再等待一帧确保 Canvas 渲染完成
+  await nextTick();
+
+  // 隐藏加载状态
+  isLoading.value = false;
+};
+
+// 辅助函数：处理 select change 事件
+const handleSelectChange = (event: Event) => {
+  const target = event.target as HTMLSelectElement;
+  const newSize = Number(target.value);
+  handlePageSizeChange(currentPage.value, newSize);
+};
+
+// 辅助函数：获取分页器高度
+const getPaginationHeight = () => {
+  if (!effectivePagination || !paginationRef.value) {
+    return 0;
+  }
+  return paginationRef.value.offsetHeight;
+};
+
+// 辅助函数：获取可视区域高度
+const getVisibleHeight = () => {
+  const headerHeight = getTheme().spacing.header;
+
+  // 如果启用虚拟滚动，不考虑分页器高度（因为虚拟滚动模式下分页器会被禁用）
+  if (props.virtualScroll) {
+    return props.height - headerHeight;
+  }
+
+  const paginationHeight = getPaginationHeight();
+  return props.height - headerHeight - paginationHeight;
+};
+
 const handleWheel = (event: WheelEvent) => {
   event.preventDefault();
 
@@ -596,11 +1213,29 @@ const handleWheel = (event: WheelEvent) => {
   // 纵向滚动
   if (!props.virtualScroll) return;
 
-  // 计算 scrollTop 边界
-  const dataLength = tableData.value?.length || 0;
+  // 动态获取可视区域高度
+  const visibleHeight = getVisibleHeight();
+  virtualScroll.containerHeight.value = visibleHeight;
+
+  // 计算 scrollTop 边界 - 使用分页后的数据
+  const data = paginatedData.value || tableData.value || [];
+  const dataLength = data.length;
   const totalHeight = dataLength * getTheme().spacing.cell;
-  const maxScrollTop = Math.max(0, totalHeight - virtualScroll.containerHeight.value);
+  const maxScrollTop = Math.max(0, totalHeight - visibleHeight);
   const newScrollTop = Math.max(0, Math.min(virtualScroll.scrollTop.value + event.deltaY, maxScrollTop));
+
+  console.log('🖱️ 滚动事件:', {
+    deltaY: event.deltaY,
+    currentScrollTop: virtualScroll.scrollTop.value,
+    newScrollTop,
+    maxScrollTop,
+    dataLength,
+    totalHeight,
+    visibleHeight,
+    containerHeight: virtualScroll.containerHeight.value,
+    cellHeight: getTheme().spacing.cell,
+    paginationHeight: getPaginationHeight()
+  });
 
   virtualScroll.scrollTop.value = newScrollTop;
 
@@ -622,11 +1257,21 @@ const handleScrollbarDragStart = (event: MouseEvent) => {
 const handleScrollbarDragMove = (event: MouseEvent) => {
   if (!scrollbarDragging.value) return;
 
-  const dataLength = tableData.value?.length || 0;
+  // 使用分页后的数据
+  const data = paginatedData.value || tableData.value || [];
+  const dataLength = data.length;
   const totalHeight = dataLength * getTheme().spacing.cell;
-  const containerHeight = props.height - getTheme().spacing.header;
+
+  // 动态获取可视区域高度
+  const headerHeight = getTheme().spacing.header;
+  let paginationHeight = 0;
+  if (!props.virtualScroll) {
+    paginationHeight = getPaginationHeight();
+  }
+  const containerHeight = props.height - headerHeight - paginationHeight;
+
   const maxScrollTop = Math.max(0, totalHeight - containerHeight);
-  const scrollbarHeight = props.height - getTheme().spacing.header;
+  const scrollbarHeight = props.height - headerHeight - paginationHeight;
   const thumbHeight = Math.max(30, (containerHeight / totalHeight) * scrollbarHeight);
   const maxThumbTop = scrollbarHeight - thumbHeight;
 
@@ -757,11 +1402,21 @@ const hitTest = (x: number, y: number) => {
 };
 
 const renderTable = () => {
-  if (!renderer.value) return;
+  if (!renderer.value) {
+    console.warn('⚠️ renderTable: renderer 未初始化');
+    return;
+  }
 
   const { startIndex, endIndex } = virtualScroll.visibleRange.value;
 
-  // 设置横向滚动位置
+  console.log('🎨 renderTable 调用:', {
+    startIndex,
+    endIndex,
+    scrollTop: virtualScroll.scrollTop.value
+  });
+
+  // 设置滚动位置
+  renderer.value.setScrollTop(virtualScroll.scrollTop.value);
   renderer.value.setScrollLeft(scrollLeft.value);
   renderer.value.setVisibleData(startIndex, endIndex);
 };
@@ -772,10 +1427,16 @@ const handleScroll = (scrollTop: number) => {
 };
 
 watch(
-  () => [props.data, props.dataSource] as const,
+  () => [props.data, props.dataSource, currentPage, pageSize] as const,
   () => {
-    const data = tableData.value || [];
+    const data = paginatedData.value || [];
     const columns = props.columns || [];
+    console.log('🔄 数据变化，更新虚拟滚动:', {
+      dataLength: data.length,
+      currentPage: currentPage.value,
+      pageSize: pageSize.value,
+      columnsLength: columns.length
+    });
     virtualScroll.virtualScroll.setDataCount(data.length);
     if (renderer.value) {
       renderer.value.setData(data, columns);
@@ -788,7 +1449,7 @@ watch(
 watch(
   () => props.columns,
   () => {
-    const data = tableData.value || [];
+    const data = paginatedData.value || [];
     const columns = props.columns || [];
     if (renderer.value) {
       renderer.value.setData(data, columns);
@@ -827,14 +1488,20 @@ watch(
     const theme = getTheme();
     const headerHeight = theme.spacing.header;
 
-    // 先保存数据引用
-    const data = tableData.value || [];
+    // 先保存数据引用 - 使用分页后的数据
+    const data = paginatedData.value || [];
     const columns = props.columns || [];
     const dataLength = data.length;
 
+    // 如果启用虚拟滚动，不考虑分页器高度
+    let paginationHeight = 0;
+    if (!props.virtualScroll) {
+      paginationHeight = getPaginationHeight();
+    }
+
     // 重要：先更新数据计数，再更新容器高度
     virtualScroll.virtualScroll.setDataCount(dataLength);
-    virtualScroll.containerHeight.value = props.height - headerHeight;
+    virtualScroll.containerHeight.value = props.height - headerHeight - paginationHeight;
 
     renderer.value.resize(newWidth, props.height);
     renderer.value.setData(data, columns);
@@ -857,12 +1524,19 @@ watch(
     const theme = getTheme();
     const headerHeight = theme.spacing.header;
 
-    const data = tableData.value || [];
+    // 使用分页后的数据
+    const data = paginatedData.value || [];
     const columns = props.columns || [];
     const dataLength = data.length;
 
+    // 如果启用虚拟滚动，不考虑分页器高度
+    let paginationHeight = 0;
+    if (!props.virtualScroll) {
+      paginationHeight = getPaginationHeight();
+    }
+
     virtualScroll.virtualScroll.setDataCount(dataLength);
-    virtualScroll.containerHeight.value = newHeight - headerHeight;
+    virtualScroll.containerHeight.value = newHeight - headerHeight - paginationHeight;
 
     renderer.value.resize(props.width, newHeight);
     renderer.value.setData(data, columns);
@@ -872,22 +1546,118 @@ watch(
   }
 );
 
+// 监听 selectedRows 变化，同步到渲染器
+watch(
+  () => selectedRows.value,
+  (newSelectedRows) => {
+    if (renderer.value) {
+      const keys = newSelectedRows.map(row => getRowKey(row));
+      (renderer.value as any).setSelectedRows(keys, getRowKey);
+    }
+  },
+  { deep: true }
+);
+
+// 监听分页状态变化（调试用）
+watch(
+  () => [total.value, currentPage.value, pageSize.value, effectivePagination.value],
+  ([newTotal, newCurrent, newPageSize, effectivePagination]) => {
+    const totalNum = newTotal as number;
+    const pageSizeNum = newPageSize as number;
+    const totalPages = (pageSizeNum && totalNum) ? Math.ceil(totalNum / pageSizeNum) : 0;
+    console.log('🔄 分页状态变化:', {
+      total: totalNum,
+      current: newCurrent,
+      pageSize: pageSizeNum,
+      effectivePagination,
+      totalPages
+    });
+  },
+  { deep: true }
+);
+
 onMounted(() => {
+  console.log('🎯 CTable 已挂载');
+
+  // 初始化加载组件
+  loadingComponent.value = createLoadingComponent(
+    {
+      spinning: isLoading,
+      tip: loadingTip,
+      size: 'default'
+    }
+  );
+
   initTable();
 });
 
 onBeforeUnmount(() => {
+  // 清理事件监听器，防止内存泄漏
+  if (canvasRef.value) {
+    canvasRef.value.removeEventListener("click", handleClick);
+    canvasRef.value.removeEventListener("mousemove", handleMouseMove);
+    canvasRef.value.removeEventListener("mouseleave", handleMouseLeave);
+    canvasRef.value.removeEventListener("wheel", handleWheel);
+  }
+
+  // 销毁渲染器
   renderer.value?.destroy();
 });
 
 defineExpose({
   scrollTo: handleScroll,
+
+  // ========== 选择相关 ==========
   getSelectedRows: () => selectedRows.value,
+
   clearSelection: () => {
     selectedRows.value = [];
-    renderer.value?.clearSelection();
+    if (renderer.value) {
+      renderer.value?.clearSelection();
+    }
     emit("selection-change", [], []);
   },
+
+  toggleRowSelection: (rowKey: string) => {
+    const row = sortedData.value.find(r => getRowKey(r) === rowKey);
+    if (!row) return;
+
+    const index = selectedRows.value.findIndex(r => getRowKey(r) === rowKey);
+    if (index !== -1) {
+      selectedRows.value.splice(index, 1);
+    } else {
+      if (effectiveSelectableType.value === "single") {
+        selectedRows.value = [row];
+      } else {
+        selectedRows.value.push(row);
+      }
+    }
+
+    const keys = selectedRows.value.map(r => getRowKey(r));
+    emit("selection-change", selectedRows.value, keys);
+    renderTable();
+  },
+
+  selectAll: () => {
+    if (effectiveSelectableType.value === "single") {
+      return; // 单选模式不支持全选
+    }
+
+    const data = sortedData.value;
+    selectedRows.value = [...data];
+
+    const keys = data.map(r => getRowKey(r));
+    emit("selection-change", selectedRows.value, keys);
+    renderTable();
+  },
+
+  deselectAll: () => {
+    selectedRows.value = [];
+    emit("selection-change", [], []);
+    renderTable();
+  },
+
+  // ========== 筛选相关 ==========
   clearFilters: () => {
     filterManager.clearAll();
     if (renderer.value) {
@@ -896,9 +1666,39 @@ defineExpose({
     emit("filter-change", []);
     renderTable();
   },
+
+  // ========== 表格操作 ==========
   refresh: () => {
     renderTable();
   },
+
+  // ========== 展开相关 ==========
+  getExpandedKeys: () => getExpandedKeys(),
+
+  setExpandedKeys: (keys: string[]) => {
+    expandedKeys.value = new Set(keys);
+    if (props.expandedRowRender && renderer.value) {
+      (renderer.value as any).updateExpandedKeys(keys);
+    }
+    renderTable();
+  },
+
+  expandAll: () => {
+    const allKeys = tableData.value.map(row => getRowKey(row));
+    expandedKeys.value = new Set(allKeys);
+    if (props.expandedRowRender && renderer.value) {
+      (renderer.value as any).updateExpandedKeys(allKeys);
+    }
+    renderTable();
+  },
+
+  collapseAll: () => {
+    expandedKeys.value.clear();
+    if (props.expandedRowRender && renderer.value) {
+      (renderer.value as any).updateExpandedKeys([]);
+    }
+    renderTable();
+  }
 });
 </script>
 
@@ -914,10 +1714,11 @@ defineExpose({
 
 .ctable-scrollbar {
   transition: opacity 0.2s;
+  opacity: 0;
 }
 
-.custom-scrollbar:hover {
-  opacity: 1 !important;
+.ctable-container:hover .ctable-scrollbar {
+  opacity: 1;
 }
 
 .scrollbar-thumb:hover {
@@ -926,6 +1727,11 @@ defineExpose({
 
 .ctable-hscrollbar {
   transition: opacity 0.2s;
+  opacity: 0;
+}
+
+.ctable-container:hover .ctable-hscrollbar {
+  opacity: 1;
 }
 
 .ctable-hscrollbar-thumb {
@@ -934,5 +1740,53 @@ defineExpose({
 
 .ctable-hscrollbar-thumb:hover {
   background-color: rgba(0, 0, 0, 0.3) !important;
+}
+
+/* 分页器容器 */
+.ctable-pagination-wrapper {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 16px;
+  background: #ffffff;
+  border-top: 1px solid #f0f0f0;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* CPagination 组件样式已内置在 CPagination.vue 中 */
+
+/* 加载动画 */
+@keyframes ctable-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.ctable-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.ctable-loading-spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #1890ff;
+  border-radius: 50%;
+  animation: ctable-spin 1s linear infinite;
 }
 </style>
