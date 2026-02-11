@@ -6,14 +6,9 @@ export class CheckboxRenderer {
     this.size = size
   }
 
-  draw(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    checked: boolean
-  ) {
+  draw(ctx: CanvasRenderingContext2D, x: number, y: number, checked: boolean) {
     const boxSize = this.size
-    const borderRadius = 2  // Ant Design 风格圆角
+    const borderRadius = 2 // Ant Design 风格圆角
 
     // Ant Design 颜色规范
     const colors = {
@@ -54,7 +49,7 @@ export class CheckboxRenderer {
       ctx.fill()
 
       ctx.strokeStyle = colors.border
-      ctx.lineWidth = 1.5  // 稍微加粗边框使其更清晰
+      ctx.lineWidth = 1.5 // 稍微加粗边框使其更清晰
       ctx.stroke()
     }
   }
@@ -83,12 +78,7 @@ export class CheckboxRenderer {
     ctx.closePath()
   }
 
-  hitTest(
-    x: number,
-    y: number,
-    mouseX: number,
-    mouseY: number
-  ): boolean {
+  hitTest(x: number, y: number, mouseX: number, mouseY: number): boolean {
     const boxSize = this.size
     return (
       mouseX >= x &&

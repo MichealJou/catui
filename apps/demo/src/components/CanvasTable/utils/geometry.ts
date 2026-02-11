@@ -1,5 +1,8 @@
 export class Point {
-  constructor(public x: number, public y: number) {}
+  constructor(
+    public x: number,
+    public y: number
+  ) {}
 }
 
 export class Rect {
@@ -9,7 +12,7 @@ export class Rect {
     public width: number,
     public height: number
   ) {}
-  
+
   contains(point: Point): boolean {
     return (
       point.x >= this.x &&
@@ -37,15 +40,15 @@ export function fitText(
 ): string {
   let ellipsis = '...'
   let width = measureText(text, font, ctx)
-  
+
   if (width <= maxWidth) {
     return text
   }
-  
+
   while (width > maxWidth && text.length > 0) {
     text = text.slice(0, -1)
     width = measureText(text + ellipsis, font, ctx)
   }
-  
+
   return text + ellipsis
 }

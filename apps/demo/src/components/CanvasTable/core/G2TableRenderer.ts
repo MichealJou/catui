@@ -18,24 +18,30 @@ export class G2TableRenderer {
   private highlightedCell: Cell | null = null
   private sortState: Map<string, SortOrder> = new Map()
   private filterState: Set<string> = new Set() // 存储有激活筛选的字段
-  
-  constructor(canvas: HTMLCanvasElement, width: number, height: number, theme: ThemeConfig, selectable: boolean = false) {
+
+  constructor(
+    canvas: HTMLCanvasElement,
+    width: number,
+    height: number,
+    theme: ThemeConfig,
+    selectable: boolean = false
+  ) {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')!
     this.width = width
     this.height = height
     this.theme = theme
     this.selectable = selectable
-    
+
     this.initChart()
     this.initCanvas()
   }
-  
+
   private initChart() {
     if (this.chart) {
       this.chart.destroy()
     }
-    
+
     this.chart = new Chart({
       container: this.canvas,
       autoFit: false,
@@ -44,18 +50,18 @@ export class G2TableRenderer {
       padding: [0, 0, 0, 0]
     })
   }
-  
+
   resize(width: number, height: number) {
     this.width = width
     this.height = height
-    
+
     if (this.chart) {
       this.chart.changeSize(width, height)
     }
-    
+
     this.initCanvas()
   }
-  
+
   private initCanvas() {
     const dpr = (window as any).devicePixelRatio || 1
     this.canvas.width = this.width * dpr
@@ -64,28 +70,28 @@ export class G2TableRenderer {
     this.canvas.style.height = `${this.height}px`
     this.ctx.scale(dpr, dpr)
   }
-  
+
   setTheme(theme: ThemeConfig) {
     this.theme = theme
     this.render()
   }
-  
+
   setData(data: any[], columns: Column[]) {
     console.log('[G2TableRenderer] setData:', {
       dataLength: data.length,
       columnsLength: columns.length
-    });
+    })
     this.data = data
     this.columns = columns
   }
-  
+
   setVisibleData(startIndex: number, endIndex: number) {
     this.startIndex = startIndex
     this.endIndex = endIndex
     this.visibleRows = this.data.slice(startIndex, endIndex)
     this.render()
   }
-  
+
   render() {
     if (!this.ctx) {
       return
@@ -125,11 +131,16 @@ export class G2TableRenderer {
     // 恢复裁剪状态
     this.ctx.restore()
   }
-  
+
   private renderHeader(headerHeight: number) {
     const { colors, fonts, spacing } = this.theme
 
-    console.log('[renderHeader] columns:', this.columns.length, 'headerHeight:', headerHeight)
+    console.log(
+      '[renderHeader] columns:',
+      this.columns.length,
+      'headerHeight:',
+      headerHeight
+    )
 
     // 计算原始列宽总和（用于判断是否需要扩展）
     let originalTotalWidth = 0
@@ -147,7 +158,10 @@ export class G2TableRenderer {
       }
 
       // 如果是最后一列且列总宽度小于容器宽度，自动扩展以填充剩余空间
-      if (colIndex === this.columns.length - 1 && originalTotalWidth < this.width) {
+      if (
+        colIndex === this.columns.length - 1 &&
+        originalTotalWidth < this.width
+      ) {
         width = this.width - x
       }
 
@@ -179,8 +193,16 @@ export class G2TableRenderer {
       const hasSort = col.sortable
       const hasFilter = col.filterable
       const iconWidth = (hasSort ? 16 : 0) + (hasFilter ? 16 : 0)
-      const text = this.fitText(col.title, visibleWidth - spacing.padding * 2 - iconWidth)
-      const textX = this.getTextX(x, visibleWidth, col.align || 'left', spacing.padding)
+      const text = this.fitText(
+        col.title,
+        visibleWidth - spacing.padding * 2 - iconWidth
+      )
+      const textX = this.getTextX(
+        x,
+        visibleWidth,
+        col.align || 'left',
+        spacing.padding
+      )
       this.ctx.fillText(text, textX, headerHeight / 2)
 
       // 绘制图标（从右到左）
@@ -188,7 +210,11 @@ export class G2TableRenderer {
 
       // 绘制筛选图标
       if (hasFilter) {
-        this.renderFilterIcon(iconX, headerHeight / 2, this.filterState.has(col.key))
+        this.renderFilterIcon(
+          iconX,
+          headerHeight / 2,
+          this.filterState.has(col.key)
+        )
         iconX -= 16
       }
 
@@ -345,7 +371,7 @@ export class G2TableRenderer {
     this.sortState.clear()
     this.render()
   }
-  
+
   private renderVisibleRows(headerHeight: number, cellHeight: number) {
     const { colors, fonts, spacing } = this.theme
 
@@ -377,7 +403,10 @@ export class G2TableRenderer {
         }
 
         // 如果是最后一列且列总宽度小于容器宽度，自动扩展以填充剩余空间
-        if (colIndex === this.columns.length - 1 && originalTotalWidth < this.width) {
+        if (
+          colIndex === this.columns.length - 1 &&
+          originalTotalWidth < this.width
+        ) {
           width = this.width - x
         }
 
@@ -385,7 +414,9 @@ export class G2TableRenderer {
         const visibleWidth = Math.min(width, this.width - x)
 
         // 绘制单元格背景（支持斑马纹）
-        this.ctx.fillStyle = isStripe ? (colors.stripe || colors.background) : colors.background
+        this.ctx.fillStyle = isStripe
+          ? colors.stripe || colors.background
+          : colors.background
         this.ctx.fillRect(x, y, visibleWidth, cellHeight)
 
         // 绘制单元格边框（ant-design-vue 风格）
@@ -400,15 +431,25 @@ export class G2TableRenderer {
         this.ctx.textBaseline = 'middle'
 
         const dataValue = row[col.dataIndex || col.key]
-        const text = col.render ? col.render(row, actualRowIndex, col) : String(dataValue ?? '')
+        const text = col.render
+          ? col.render(row, actualRowIndex, col)
+          : String(dataValue ?? '')
 
-        const fittedText = this.fitText(text, visibleWidth - spacing.padding * 2)
-        const textX = this.getTextX(x, visibleWidth, col.align || 'left', spacing.padding)
+        const fittedText = this.fitText(
+          text,
+          visibleWidth - spacing.padding * 2
+        )
+        const textX = this.getTextX(
+          x,
+          visibleWidth,
+          col.align || 'left',
+          spacing.padding
+        )
         this.ctx.fillText(fittedText, textX, y + cellHeight / 2)
       })
     })
   }
-  
+
   private renderGrid(headerHeight: number, cellHeight: number) {
     const { colors, spacing } = this.theme
 
@@ -420,7 +461,11 @@ export class G2TableRenderer {
     // 只绘制可见行之间的横线（不包括最后一行下方）
     const maxVisibleY = this.height
 
-    for (let localRowIndex = 0; localRowIndex < this.visibleRows.length - 1; localRowIndex++) {
+    for (
+      let localRowIndex = 0;
+      localRowIndex < this.visibleRows.length - 1;
+      localRowIndex++
+    ) {
       const y = headerHeight + (localRowIndex + 1) * cellHeight
 
       // 不绘制超出 Canvas 高度的线条
@@ -459,7 +504,7 @@ export class G2TableRenderer {
     // 如果列总宽度小于容器宽度，返回容器宽度（表格填充整个容器）
     return Math.max(totalWidth, this.width)
   }
-  
+
   private getColumnX(index: number): number {
     let x = 0
     for (let i = 0; i < index; i++) {
@@ -467,8 +512,13 @@ export class G2TableRenderer {
     }
     return x
   }
-  
-  private getTextX(x: number, width: number, align: string, padding: number): number {
+
+  private getTextX(
+    x: number,
+    width: number,
+    align: string,
+    padding: number
+  ): number {
     switch (align) {
       case 'center':
         return x + width / 2
@@ -478,22 +528,22 @@ export class G2TableRenderer {
         return x + padding
     }
   }
-  
+
   private fitText(text: string, maxWidth: number): string {
     const metrics = this.ctx.measureText(text)
-    
+
     if (metrics.width <= maxWidth) {
       return text
     }
-    
+
     let result = text
     while (this.ctx.measureText(result).width > maxWidth && result.length > 0) {
       result = result.slice(0, -1)
     }
-    
+
     return result.length > 0 ? result + '...' : ''
   }
-  
+
   toggleRowSelection(rowIndex: number) {
     if (this.selectedRows.has(rowIndex)) {
       this.selectedRows.delete(rowIndex)
@@ -502,16 +552,16 @@ export class G2TableRenderer {
     }
     this.render()
   }
-  
+
   clearSelection() {
     this.selectedRows.clear()
     this.render()
   }
-  
+
   getSelectedRows(): number[] {
     return Array.from(this.selectedRows)
   }
-  
+
   highlightCell(cell: Cell | any) {
     // 先清除之前的高亮
     if (this.highlightedCell) {
@@ -578,9 +628,19 @@ export class G2TableRenderer {
       this.ctx.textBaseline = 'middle'
 
       const dataValue = rowData[column.dataIndex || column.key]
-      const text = column.render ? column.render(rowData, row, column) : String(dataValue ?? '')
-      const fittedText = this.fitText(text, width - this.theme.spacing.padding * 2)
-      const textX = this.getTextX(x, width, column.align || 'left', this.theme.spacing.padding)
+      const text = column.render
+        ? column.render(rowData, row, column)
+        : String(dataValue ?? '')
+      const fittedText = this.fitText(
+        text,
+        width - this.theme.spacing.padding * 2
+      )
+      const textX = this.getTextX(
+        x,
+        width,
+        column.align || 'left',
+        this.theme.spacing.padding
+      )
       this.ctx.fillText(fittedText, textX, y + cellHeight / 2)
     }
   }
@@ -602,7 +662,7 @@ export class G2TableRenderer {
       }
     }
   }
-  
+
   destroy() {
     if (this.chart) {
       this.chart.destroy()

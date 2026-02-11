@@ -45,7 +45,11 @@ export function generateTestData(count: number): TestData[] {
       job: faker.name.jobTitle(),
       salary: faker.datatype.number({ min: 5000, max: 50000 }),
       date: faker.date.recent().toISOString().split('T')[0],
-      status: faker.random.arrayElement(['active', 'inactive', 'pending']) as any
+      status: faker.random.arrayElement([
+        'active',
+        'inactive',
+        'pending'
+      ]) as any
     })
   }
 
@@ -155,7 +159,10 @@ export const testDataSets = {
 /**
  * 生成带有层级关系的数据（树形数据）
  */
-export function generateTreeData(depth: number, childrenPerNode: number = 3): any[] {
+export function generateTreeData(
+  depth: number,
+  childrenPerNode: number = 3
+): any[] {
   let id = 0
 
   function createNode(level: number): any {

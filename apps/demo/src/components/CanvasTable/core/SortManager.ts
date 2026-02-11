@@ -6,7 +6,11 @@ export class SortManager {
   /**
    * 设置排序配置
    */
-  setSort(field: string, order: SortOrder, sorter?: (a: any, b: any) => number) {
+  setSort(
+    field: string,
+    order: SortOrder,
+    sorter?: (a: any, b: any) => number
+  ) {
     if (order === null) {
       this.sortConfigs.delete(field)
     } else {

@@ -17,8 +17,8 @@ export default defineConfig({
       resolvers: [
         // ant-design-vue 自动按需导入
         AntDesignVueResolver({
-          importStyle: false, // 样式自动导入（推荐使用 CSS）
-        }),
+          importStyle: false // 样式自动导入（推荐使用 CSS）
+        })
 
         // 如果使用 element-plus，取消注释：
         // ElementPlusResolver({
@@ -33,8 +33,8 @@ export default defineConfig({
       extensions: ['vue', 'tsx'],
 
       // 生成类型声明文件
-      dts: 'src/components.d.ts',
-    }),
+      dts: 'src/components.d.ts'
+    })
   ],
 
   resolve: {

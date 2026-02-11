@@ -6,7 +6,12 @@
  */
 
 import { defineComponent, h } from 'vue'
-import type { PaginationAdapter, PaginationConfig, PaginationEmits, PaginationSlots } from './types'
+import type {
+  PaginationAdapter,
+  PaginationConfig,
+  PaginationEmits,
+  PaginationSlots
+} from './types'
 
 // 动态导入 ant-design-vue（不打包）
 let AntDesignVuePagination: any = null
@@ -41,8 +46,12 @@ function checkAntDesignVueAvailable(): boolean {
       }
     }
 
-    console.warn('[CTable] ant-design-vue not found. Using default pagination component.')
-    console.warn('[CTable] To use ant-design-vue pagination, install it: npm install ant-design-vue')
+    console.warn(
+      '[CTable] ant-design-vue not found. Using default pagination component.'
+    )
+    console.warn(
+      '[CTable] To use ant-design-vue pagination, install it: npm install ant-design-vue'
+    )
     return false
   } catch (error) {
     return false
@@ -60,28 +69,52 @@ export const AntDesignVuePaginationAdapter: PaginationAdapter = {
     return checkAntDesignVueAvailable()
   },
 
-  createComponent(config: PaginationConfig, emits: PaginationEmits, slots?: PaginationSlots) {
+  createComponent(
+    config: PaginationConfig,
+    emits: PaginationEmits,
+    slots?: PaginationSlots
+  ) {
     // 如果 ant-design-vue 不可用，返回错误提示
     if (!this.isAvailable()) {
-      console.error('[CTable] ant-design-vue is not installed. Cannot use AntDesignVuePaginationAdapter.')
+      console.error(
+        '[CTable] ant-design-vue is not installed. Cannot use AntDesignVuePaginationAdapter.'
+      )
       // 返回一个占位组件
       return defineComponent({
         name: 'AntDesignVuePaginationFallback',
         setup() {
-          return () => h('div', {
-            style: {
-              color: 'red',
-              padding: '20px',
-              border: '1px solid red',
-              borderRadius: '4px'
-            }
-          }, [
-            h('div', { style: { fontWeight: 'bold', marginBottom: '8px' } }, 'Error: ant-design-vue not installed'),
-            h('div', 'To use ant-design-vue pagination, please install:'),
-            h('code', { style: { display: 'block', marginTop: '8px', padding: '8px', background: '#f5f5f5' } },
-              'npm install ant-design-vue'
+          return () =>
+            h(
+              'div',
+              {
+                style: {
+                  color: 'red',
+                  padding: '20px',
+                  border: '1px solid red',
+                  borderRadius: '4px'
+                }
+              },
+              [
+                h(
+                  'div',
+                  { style: { fontWeight: 'bold', marginBottom: '8px' } },
+                  'Error: ant-design-vue not installed'
+                ),
+                h('div', 'To use ant-design-vue pagination, please install:'),
+                h(
+                  'code',
+                  {
+                    style: {
+                      display: 'block',
+                      marginTop: '8px',
+                      padding: '8px',
+                      background: '#f5f5f5'
+                    }
+                  },
+                  'npm install ant-design-vue'
+                )
+              ]
             )
-          ])
         }
       })
     }
@@ -153,12 +186,21 @@ export const AntDesignVuePaginationAdapter: PaginationAdapter = {
 
             // 上一页
             if (slots.prev) {
-              slotMappings.prevIcon = () => slots.prev!({ disabled: !config.current || config.current <= 1 })
+              slotMappings.prevIcon = () =>
+                slots.prev!({
+                  disabled: !config.current || config.current <= 1
+                })
             }
 
             // 下一页
             if (slots.next) {
-              slotMappings.nextIcon = () => slots.next!({ disabled: !config.current || config.current >= Math.ceil(config.total / (config.pageSize || 10)) })
+              slotMappings.nextIcon = () =>
+                slots.next!({
+                  disabled:
+                    !config.current ||
+                    config.current >=
+                      Math.ceil(config.total / (config.pageSize || 10))
+                })
             }
           }
 

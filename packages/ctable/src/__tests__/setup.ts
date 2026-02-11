@@ -33,7 +33,7 @@ class MockCanvasRenderingContext2D {
   transform() {}
 }
 
-global.HTMLCanvasElement.prototype.getContext = vi.fn((contextType) => {
+global.HTMLCanvasElement.prototype.getContext = vi.fn(contextType => {
   if (contextType === '2d') {
     return new MockCanvasRenderingContext2D() as any
   }
@@ -48,7 +48,7 @@ global.ResizeObserver = vi.fn().mockImplementation(() => ({
 }))
 
 // Mock requestAnimationFrame
-global.requestAnimationFrame = vi.fn((cb) => setTimeout(cb, 16))
+global.requestAnimationFrame = vi.fn(cb => setTimeout(cb, 16))
 global.cancelAnimationFrame = vi.fn()
 
 // Mock getBoundingClientRect

@@ -1,26 +1,30 @@
 {
-	"scripts": {
-		"dev": "pnpm -r --parallel dev",
-		"dev:demo": "pnpm --filter @catui/demo dev",
-		"build": "pnpm -r build",
-		"build:demo": "pnpm --filter @catui/demo build",
-		"build:all": "pnpm build:demo",
-		"preview": "pnpm --filter @catui/demo preview",
-		"lint": "pnpm -r lint",
-		"type-check": "pnpm --filter @catui/ctable type-check",
-		"clean": "pnpm --filter @catui/ctable clean"
-	},
-	"dependencies": {
-		"@iconify/vue": "^5.0.0"
-	},
-	"devDependencies": {
-		"@types/node": "^20.0.0",
-		"@typescript-eslint/eslint-plugin": "^8.55.0",
-		"@typescript-eslint/parser": "^8.55.0",
-		"@vue/eslint-config-prettier": "^10.2.0",
-		"@vue/eslint-config-typescript": "^14.6.0",
-		"eslint": "^9.39.2",
-		"eslint-config-prettier": "^10.1.8",
-		"eslint-plugin-vue": "^9.33.0"
-	}
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:demo": "pnpm --filter @catui/demo dev",
+    "build": "pnpm -r build",
+    "build:demo": "pnpm --filter @catui/demo build",
+    "build:all": "pnpm build:demo",
+    "preview": "pnpm --filter @catui/demo preview",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "type-check": "pnpm --filter @catui/ctable type-check",
+    "clean": "pnpm --filter @catui/ctable clean",
+    "skills:setup": "node ./.claude/skills-setup.js",
+    "skills:check": "node ./.claude/skills-check.js",
+    "skills:update": "npx skills update",
+    "yuque:setup": "node ./.claude/yuque-setup.js",
+    "yuque:verify": "node ./.claude/yuque-setup.js"
+  },
+  "dependencies": {
+    "@iconify/vue": "^5.0.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@types/node": "^20.0.0",
+    "oxlint": "^1.46.0",
+    "prettier": "^3.8.1",
+    "unocss": "^66.6.0",
+    "unocss-preset-animations": "^1.3.0"
+  }
 }

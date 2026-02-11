@@ -59,33 +59,33 @@ export const DARK_THEME: ThemeConfig = {
 export class ThemeManager {
   private currentTheme: ThemeConfig
   private listeners: Set<(theme: ThemeConfig) => void> = new Set()
-  
+
   constructor(initialTheme: ThemeConfig = DEFAULT_THEME) {
     this.currentTheme = initialTheme
     this.applyTheme(initialTheme)
   }
-  
+
   getTheme(): ThemeConfig {
     return this.currentTheme
   }
-  
+
   setTheme(theme: ThemeConfig) {
     this.currentTheme = theme
     this.applyTheme(theme)
     this.listeners.forEach(callback => callback(theme))
   }
-  
+
   setThemeByName(name: 'default' | 'dark') {
     const theme = name === 'dark' ? DARK_THEME : DEFAULT_THEME
     this.setTheme(theme)
   }
-  
+
   private applyTheme(theme: ThemeConfig) {
     Object.entries(theme.colors).forEach(([key, value]) => {
       document.documentElement.style.setProperty(`--canvas-color-${key}`, value)
     })
   }
-  
+
   onChange(callback: (theme: ThemeConfig) => void) {
     this.listeners.add(callback)
     return () => {
@@ -98,7 +98,7 @@ export function useThemeManager(initialTheme?: 'default' | 'dark') {
   const themeManager = new ThemeManager(
     initialTheme === 'dark' ? DARK_THEME : DEFAULT_THEME
   )
-  
+
   return {
     themeManager,
     setTheme: (name: 'default' | 'dark') => themeManager.setThemeByName(name),

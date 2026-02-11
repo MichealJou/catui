@@ -1,19 +1,19 @@
 <template>
   <div class="canvas-table-demo">
     <h1>Canvas Table Demo</h1>
-    
+
     <div class="controls">
       <button @click="theme = 'default'">Default Theme</button>
       <button @click="theme = 'dark'">Dark Theme</button>
       <button @click="addRow">Add Row</button>
       <button @click="clearSelection">Clear Selection</button>
     </div>
-    
+
     <div class="stats">
       <p>Total Rows: {{ data.length }}</p>
       <p>Selected Rows: {{ selectedRows.length }}</p>
     </div>
-    
+
     <CanvasTable
       :columns="columns"
       :data="data"
@@ -34,7 +34,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import CanvasTable from '../components/CanvasTable/CanvasTable.vue'
-import { DEFAULT_THEME, DARK_THEME } from '../components/CanvasTable/core/ThemeManager'
+import {
+  DEFAULT_THEME,
+  DARK_THEME
+} from '../components/CanvasTable/core/ThemeManager'
 
 const columns = [
   { key: 'id', title: 'ID', dataIndex: 'id', width: 80, align: 'center' },

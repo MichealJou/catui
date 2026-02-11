@@ -3,10 +3,10 @@
     <h1 class="demo-title">CTable - 高性能表格组件演示</h1>
 
     <p class="demo-description">
-      基于 G2 的高性能表格组件，支持百万级数据渲染和丰富的交互功能。<br>
+      基于 G2 的高性能表格组件，支持百万级数据渲染和丰富的交互功能。<br />
       兼容 Ant Design Vue / Element Plus / NaiveUI 主题。
     </p>
-    
+
     <!-- 控制面板 -->
     <div class="controls">
       <button class="control-btn" @click="generateData(100)">
@@ -24,18 +24,14 @@
       <button class="control-btn" @click="generateData(1000000)">
         生成 1,000,000 条数据
       </button>
-      <button class="control-btn" @click="clearData">
-        清空数据
-      </button>
+      <button class="control-btn" @click="clearData">清空数据</button>
       <button class="control-btn" @click="toggleTheme">
         主题: {{ getThemeDisplayName(currentTheme) }}
       </button>
       <button class="control-btn" @click="togglePaginationMode">
         分页: {{ paginationModes[currentPaginationMode].name }}
       </button>
-      <button class="control-btn" @click="clearFilters">
-        清除筛选
-      </button>
+      <button class="control-btn" @click="clearFilters">清除筛选</button>
       <button class="control-btn test-btn" @click="runG2Test">
         🧪 测试 G2 API
       </button>
@@ -47,7 +43,7 @@
       <span class="theme-value">{{ getThemeDisplayName(currentTheme) }}</span>
       <span class="theme-desc">- {{ getThemeDescription(currentTheme) }}</span>
     </div>
-    
+
     <!-- 表格容器 -->
     <div class="table-container" ref="tableContainerRef">
       <div class="table-title">数据表格 ({{ tableData.length }} 条记录)</div>
@@ -70,7 +66,7 @@
         :theme="currentTheme"
         :virtual-scroll="true"
         :row-selection="{ type: 'checkbox', selectedRowKeys: selectedKeys }"
-        :pagination="effectivePaginationConfig"
+        :pagination="false"
         @cell-click="handleCellClick"
         @row-click="handleRowClick"
         @selection-change="handleSelectionChange"
@@ -80,17 +76,15 @@
       >
         <!-- 分页插槽示例 -->
         <template #pagination-total="{ total, range }">
-          <span style="color: #1677ff; font-weight: 500;">
+          <span style="color: #1677ff; font-weight: 500">
             显示 {{ range[0] }}-{{ range[1] }} 条，共 {{ total }} 条数据
           </span>
         </template>
       </CTable>
 
-      <div v-else class="loading-state">
-        正在初始化表格...
-      </div>
+      <div v-else class="loading-state">正在初始化表格...</div>
     </div>
-    
+
     <!-- 信息面板 -->
     <div class="info-panel">
       <div class="info-item">
@@ -131,6 +125,9 @@ interface TestData {
   job: string
   salary: number
   date: string
+  department: string
+  email: string
+  notes: string
 }
 
 // 数据
@@ -167,11 +164,20 @@ const paginationConfig = ref({
 
 // 分页模式配置
 const paginationModes = [
-  { name: '基础分页', config: { showSizeChanger: false, showQuickJumper: false } },
-  { name: '完整分页', config: { showSizeChanger: true, showQuickJumper: true } },
+  {
+    name: '基础分页',
+    config: { showSizeChanger: false, showQuickJumper: false }
+  },
+  {
+    name: '完整分页',
+    config: { showSizeChanger: true, showQuickJumper: true }
+  },
   { name: '简洁模式', config: { simple: true, showSizeChanger: true } },
   { name: '迷你版本', config: { size: 'small', showSizeChanger: true } },
-  { name: '上一步/下一步', config: { prevText: '上一页', nextText: '下一页', showSizeChanger: true } }
+  {
+    name: '上一步/下一步',
+    config: { prevText: '上一页', nextText: '下一页', showSizeChanger: true }
+  }
 ]
 const currentPaginationMode = ref(0)
 
@@ -200,7 +206,8 @@ const columns = reactive<Column[]>([
     key: '__checkbox__',
     title: '选择',
     width: 50,
-    align: 'center'
+    align: 'center',
+    fixed: 'left'
   },
   {
     key: 'id',
@@ -255,13 +262,32 @@ const columns = reactive<Column[]>([
     title: '日期',
     width: 120,
     align: 'center'
+  },
+  {
+    key: 'department',
+    title: '部门',
+    width: 120,
+    align: 'left'
+  },
+  {
+    key: 'email',
+    title: '邮箱',
+    width: 200,
+    align: 'left'
+  },
+  {
+    key: 'notes',
+    title: '备注',
+    width: 180,
+    align: 'left',
+    fixed: 'right'
   }
 ])
 
 // 组件引用
 const canvasTableRef = ref()
 const tableContainerRef = ref<HTMLDivElement>()
-const tableWidth = ref(0)  // 初始为0，会在 onMounted 中计算
+const tableWidth = ref(0) // 初始为0，会在 onMounted 中计算
 let resizeObserver: ResizeObserver | null = null
 
 // 监听容器大小变化
@@ -274,14 +300,11 @@ onMounted(() => {
     const debouncedUpdateWidth = debounce(() => {
       const containerWidth = tableContainerRef.value!.clientWidth
 
-      // 计算所有列的总宽度
-      const columnsTotalWidth = columns.reduce((sum, col) => {
-        const width = typeof col.width === 'number' ? col.width : 120
-        return sum + width
-      }, 0)
+      // 表格宽度应该等于容器宽度
+      // VTable 内部会自动处理横向滚动
+      const newWidth = containerWidth - 2  // 减 2 留出边框空间
 
       // 只在宽度真正改变时才更新
-      const newWidth = Math.max(columnsTotalWidth, containerWidth - 2)
       if (Math.abs(newWidth - tableWidth.value) > 10) {
         tableWidth.value = newWidth
       }
@@ -305,22 +328,17 @@ const updateTableWidth = () => {
   if (tableContainerRef.value) {
     const containerWidth = tableContainerRef.value.clientWidth
 
-    // 计算所有列的总宽度
-    const columnsTotalWidth = columns.reduce((sum, col) => {
-      const width = typeof col.width === 'number' ? col.width : 120
-      return sum + width
-    }, 0)
-
-    // 表格宽度 = Math.max(容器宽度, 列总宽度)
-    // 这样可以确保：
-    // 1. 当容器宽度 > 列总宽度时，表格扩展以填充容器（最后一列自动扩展）
-    // 2. 当容器宽度 < 列总宽度时，表格保持列总宽度，出现横向滚动条
-    tableWidth.value = Math.max(columnsTotalWidth, containerWidth - 2)
+    // 表格宽度应该等于容器宽度
+    // VTable 内部会自动处理横向滚动，当列总宽度 > 容器宽度时
+    tableWidth.value = containerWidth - 2  // 减 2 留出边框空间
   }
 }
 
 // 防抖函数
-const debounce = <T extends (...args: any[]) => any>(fn: T, delay: number): T => {
+const debounce = <T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number
+): T => {
   let timeoutId: ReturnType<typeof setTimeout>
   return ((...args: any[]) => {
     clearTimeout(timeoutId)
@@ -336,8 +354,36 @@ const generateData = (count: number) => {
   loadingProgress.value = 0
   lastAction.value = `生成 ${count} 条数据`
 
-  const jobs = ['工程师', '设计师', '产品经理', '运营', '销售', '市场', '财务', '人事']
-  const cities = ['北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '西安']
+  const jobs = [
+    '工程师',
+    '设计师',
+    '产品经理',
+    '运营',
+    '销售',
+    '市场',
+    '财务',
+    '人事'
+  ]
+  const cities = [
+    '北京',
+    '上海',
+    '广州',
+    '深圳',
+    '杭州',
+    '成都',
+    '武汉',
+    '西安'
+  ]
+  const departments = [
+    '研发部',
+    '设计部',
+    '产品部',
+    '运营部',
+    '销售部',
+    '市场部',
+    '财务部',
+    '人事部'
+  ]
 
   // 小于等于 10000 条数据使用同步生成
   if (count <= 10000) {
@@ -351,7 +397,14 @@ const generateData = (count: number) => {
         phone: `138${String(Math.floor(Math.random() * 100000000)).padStart(8, '0')}`,
         job: jobs[Math.floor(Math.random() * jobs.length)],
         salary: 5000 + Math.floor(Math.random() * 50000),
-        date: new Date(2024, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toLocaleDateString()
+        date: new Date(
+          2024,
+          Math.floor(Math.random() * 12),
+          Math.floor(Math.random() * 28) + 1
+        ).toLocaleDateString(),
+        department: departments[Math.floor(Math.random() * departments.length)],
+        email: `user${i}@example.com`,
+        notes: `备注信息 ${i}`
       })
     }
     tableData.value = data
@@ -381,7 +434,14 @@ const generateData = (count: number) => {
             phone: `138${String(Math.floor(Math.random() * 100000000)).padStart(8, '0')}`,
             job: jobs[Math.floor(Math.random() * jobs.length)],
             salary: 5000 + Math.floor(Math.random() * 50000),
-            date: new Date(2024, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toLocaleDateString()
+            date: new Date(
+              2024,
+              Math.floor(Math.random() * 12),
+              Math.floor(Math.random() * 28) + 1
+            ).toLocaleDateString(),
+            department: departments[Math.floor(Math.random() * departments.length)],
+            email: `user${i}@example.com`,
+            notes: `备注信息 ${i}`
           })
         }
 
@@ -425,7 +485,8 @@ const toggleTheme = () => {
 
 // 切换分页模式
 const togglePaginationMode = () => {
-  currentPaginationMode.value = (currentPaginationMode.value + 1) % paginationModes.length
+  currentPaginationMode.value =
+    (currentPaginationMode.value + 1) % paginationModes.length
   lastAction.value = `切换分页模式为 ${paginationModes[currentPaginationMode.value].name}`
 }
 
@@ -436,7 +497,7 @@ const getThemeDisplayName = (theme: ThemePreset): string => {
     'ant-design-dark': 'Ant Design (暗黑)',
     'element-plus': 'Element Plus',
     'element-plus-dark': 'Element Plus (暗黑)',
-    'naive': 'NaiveUI',
+    naive: 'NaiveUI',
     'naive-dark': 'NaiveUI (暗黑)'
   }
   return names[theme] || theme
@@ -449,7 +510,7 @@ const getThemeDescription = (theme: ThemePreset): string => {
     'ant-design-dark': 'Ant Design Vue 暗黑主题',
     'element-plus': 'Element Plus 默认主题',
     'element-plus-dark': 'Element Plus 暗黑主题',
-    'naive': 'NaiveUI 默认主题',
+    naive: 'NaiveUI 默认主题',
     'naive-dark': 'NaiveUI 暗黑主题'
   }
   return descriptions[theme] || ''
@@ -543,8 +604,7 @@ const runG2Test = () => {
   margin-bottom: 20px;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;  /* 改为 hidden，让 VTable 内部处理滚动 */
   width: 100%;
 }
 

@@ -11,7 +11,10 @@
         <div v-if="text" class="spin-text">{{ text }}</div>
         <div v-if="showProgress" class="spin-progress">
           <div class="spin-progress-bar">
-            <div class="spin-progress-fill" :style="{ width: progress + '%' }"></div>
+            <div
+              class="spin-progress-fill"
+              :style="{ width: progress + '%' }"
+            ></div>
           </div>
           <div class="spin-progress-text">{{ progress }}%</div>
         </div>

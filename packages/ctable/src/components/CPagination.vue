@@ -120,14 +120,8 @@
           :disabled="disabled"
           @change="handleSizeChange"
         >
-          <option
-            v-for="size in pageSizeOptions"
-            :key="size"
-            :value="size"
-          >
-            <slot name="pageSizeOption" :size="size">
-              {{ size }} 条/页
-            </slot>
+          <option v-for="size in pageSizeOptions" :key="size" :value="size">
+            <slot name="pageSizeOption" :size="size"> {{ size }} 条/页 </slot>
           </option>
         </select>
       </div>
@@ -151,7 +145,10 @@ export default defineComponent({
     showSizeChanger: { type: Boolean, default: false },
     showQuickJumper: { type: Boolean, default: false },
     showTotal: { type: Function, default: undefined },
-    pageSizeOptions: { type: Array as () => number[], default: () => [10, 20, 50, 100] },
+    pageSizeOptions: {
+      type: Array as () => number[],
+      default: () => [10, 20, 50, 100]
+    },
     simple: { type: Boolean, default: false },
     size: { type: String as () => 'small' | 'default' | '', default: '' },
     hideOnSinglePage: { type: Boolean, default: false },
@@ -263,7 +260,12 @@ export default defineComponent({
       const target = event.target as HTMLInputElement
       const page = parseInt(target.value)
 
-      if (!isNaN(page) && page >= 1 && page <= totalPages.value && !props.disabled) {
+      if (
+        !isNaN(page) &&
+        page >= 1 &&
+        page <= totalPages.value &&
+        !props.disabled
+      ) {
         current.value = page
         emit('change', page, pageSize.value)
       }
@@ -288,17 +290,23 @@ export default defineComponent({
     }
 
     // 监听 props 变化
-    watch(() => props.current, (newVal) => {
-      if (newVal !== undefined) {
-        current.value = newVal
+    watch(
+      () => props.current,
+      newVal => {
+        if (newVal !== undefined) {
+          current.value = newVal
+        }
       }
-    })
+    )
 
-    watch(() => props.pageSize, (newVal) => {
-      if (newVal !== undefined) {
-        pageSize.value = newVal
+    watch(
+      () => props.pageSize,
+      newVal => {
+        if (newVal !== undefined) {
+          pageSize.value = newVal
+        }
       }
-    })
+    )
 
     return {
       current,
@@ -356,7 +364,9 @@ export default defineComponent({
   transition: all 0.2s;
 }
 
-.cpagination-item:hover:not(.cpagination-item-active):not(.cpagination-item-disabled) {
+.cpagination-item:hover:not(.cpagination-item-active):not(
+    .cpagination-item-disabled
+  ) {
   border-color: #1677ff;
   color: #1677ff;
 }

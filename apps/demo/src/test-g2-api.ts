@@ -104,7 +104,7 @@ export function testG2API() {
     container,
     autoFit: false,
     width: 800,
-    height: 600,
+    height: 600
   })
 
   console.log('✅ G2 Chart 创建成功')
@@ -116,14 +116,14 @@ export function testG2API() {
     const rectData: RectData[] = [
       { id: 1, x: 50, y: 50, width: 100, height: 40, fill: '#1677ff' },
       { id: 2, x: 50, y: 100, width: 100, height: 40, fill: '#52c41a' },
-      { id: 3, x: 50, y: 150, width: 100, height: 40, fill: '#faad14' },
+      { id: 3, x: 50, y: 150, width: 100, height: 40, fill: '#faad14' }
     ]
 
     chart
       .shape()
       .data(rectData)
-      .encode('x', 'id')  // 编码虚拟字段，满足 G2 要求
-      .encode('y', 'id')  // y channel 也需要编码
+      .encode('x', 'id') // 编码虚拟字段，满足 G2 要求
+      .encode('y', 'id') // y channel 也需要编码
       .style('render', (_style: any, context: any, index: number) => {
         const { document } = context
 
@@ -142,8 +142,8 @@ export function testG2API() {
             height: data.height,
             fill: data.fill,
             stroke: '#d9d9d9',
-            lineWidth: 1,
-          },
+            lineWidth: 1
+          }
         })
         return rect
       })
@@ -160,14 +160,14 @@ export function testG2API() {
     const textData: TextData[] = [
       { id: 1, x: 160, y: 70, text: 'Hello G2!', fill: '#000000' },
       { id: 2, x: 160, y: 120, text: 'Testing...', fill: '#000000' },
-      { id: 3, x: 160, y: 170, text: 'Success!', fill: '#000000' },
+      { id: 3, x: 160, y: 170, text: 'Success!', fill: '#000000' }
     ]
 
     chart
       .shape()
       .data(textData)
-      .encode('x', 'id')  // 编码虚拟字段
-      .encode('y', 'id')  // y channel 也需要编码
+      .encode('x', 'id') // 编码虚拟字段
+      .encode('y', 'id') // y channel 也需要编码
       .style('render', (_style: any, context: any, index: number) => {
         const { document } = context
 
@@ -187,8 +187,8 @@ export function testG2API() {
             fontSize: 14,
             textAlign: 'center',
             textBaseline: 'middle',
-            fontFamily: 'Arial, sans-serif',
-          },
+            fontFamily: 'Arial, sans-serif'
+          }
         })
         return text
       })
@@ -203,16 +203,40 @@ export function testG2API() {
 
   try {
     const checkboxData: CheckboxData[] = [
-      { id: 1, x: 300, y: 50, size: 16, checked: false, fill: '#ffffff', stroke: '#d9d9d9' },
-      { id: 2, x: 300, y: 100, size: 16, checked: true, fill: '#1677ff', stroke: '#1677ff' },
-      { id: 3, x: 300, y: 150, size: 16, checked: false, fill: '#ffffff', stroke: '#d9d9d9' },
+      {
+        id: 1,
+        x: 300,
+        y: 50,
+        size: 16,
+        checked: false,
+        fill: '#ffffff',
+        stroke: '#d9d9d9'
+      },
+      {
+        id: 2,
+        x: 300,
+        y: 100,
+        size: 16,
+        checked: true,
+        fill: '#1677ff',
+        stroke: '#1677ff'
+      },
+      {
+        id: 3,
+        x: 300,
+        y: 150,
+        size: 16,
+        checked: false,
+        fill: '#ffffff',
+        stroke: '#d9d9d9'
+      }
     ]
 
     chart
       .shape()
       .data(checkboxData)
-      .encode('x', 'id')  // 编码虚拟字段
-      .encode('y', 'id')  // y channel 也需要编码
+      .encode('x', 'id') // 编码虚拟字段
+      .encode('y', 'id') // y channel 也需要编码
       .style('render', (_style: any, context: any, index: number) => {
         const { document } = context
 
@@ -236,8 +260,8 @@ export function testG2API() {
             fill: data.fill,
             stroke: data.stroke,
             lineWidth: 1.5,
-            radius: 2,
-          },
+            radius: 2
+          }
         })
 
         group.appendChild(rect)
@@ -250,8 +274,8 @@ export function testG2API() {
               stroke: '#ffffff',
               lineWidth: 2,
               lineCap: 'round',
-              lineJoin: 'round',
-            },
+              lineJoin: 'round'
+            }
           })
           group.appendChild(path)
         }
@@ -270,14 +294,14 @@ export function testG2API() {
   try {
     const sortData: SortData[] = [
       { id: 1, x: 350, y: 60, size: 8, fill: '#000000', opacity: 0.25 }, // 上箭头（未激活）
-      { id: 2, x: 350, y: 110, size: 8, fill: '#000000', opacity: 1 },   // 下箭头（激活）
+      { id: 2, x: 350, y: 110, size: 8, fill: '#000000', opacity: 1 } // 下箭头（激活）
     ]
 
     chart
       .shape()
       .data(sortData)
-      .encode('x', 'id')  // 编码虚拟字段
-      .encode('y', 'id')  // y channel 也需要编码
+      .encode('x', 'id') // 编码虚拟字段
+      .encode('y', 'id') // y channel 也需要编码
       .style('render', (_style: any, context: any, index: number) => {
         const { document } = context
 
@@ -289,14 +313,19 @@ export function testG2API() {
         const data = sortData[index]
 
         const isDown = data.y > 80
-        const pathStr = getTrianglePath(data.x, data.y, data.size, isDown ? 'down' : 'up')
+        const pathStr = getTrianglePath(
+          data.x,
+          data.y,
+          data.size,
+          isDown ? 'down' : 'up'
+        )
 
         const path = document.createElement('path', {
           style: {
             d: pathStr,
             fill: data.fill,
-            opacity: data.opacity,
-          },
+            opacity: data.opacity
+          }
         })
         return path
       })
@@ -311,22 +340,112 @@ export function testG2API() {
 
   try {
     const cellData: CellData[] = [
-      { id: 1, x: 50, y: 250, width: 100, height: 40, fill: '#fafafa', stroke: '#d9d9d9', text: 'Name', textColor: '#000000' },
-      { id: 2, x: 150, y: 250, width: 100, height: 40, fill: '#fafafa', stroke: '#d9d9d9', text: 'Age', textColor: '#000000' },
-      { id: 3, x: 250, y: 250, width: 100, height: 40, fill: '#fafafa', stroke: '#d9d9d9', text: 'City', textColor: '#000000' },
-      { id: 4, x: 50, y: 290, width: 100, height: 40, fill: '#ffffff', stroke: '#d9d9d9', text: 'Alice', textColor: '#000000' },
-      { id: 5, x: 150, y: 290, width: 100, height: 40, fill: '#ffffff', stroke: '#d9d9d9', text: '25', textColor: '#000000' },
-      { id: 6, x: 250, y: 290, width: 100, height: 40, fill: '#ffffff', stroke: '#d9d9d9', text: 'NYC', textColor: '#000000' },
-      { id: 7, x: 50, y: 330, width: 100, height: 40, fill: '#ffffff', stroke: '#d9d9d9', text: 'Bob', textColor: '#000000' },
-      { id: 8, x: 150, y: 330, width: 100, height: 40, fill: '#ffffff', stroke: '#d9d9d9', text: '30', textColor: '#000000' },
-      { id: 9, x: 250, y: 330, width: 100, height: 40, fill: '#ffffff', stroke: '#d9d9d9', text: 'LA', textColor: '#000000' },
+      {
+        id: 1,
+        x: 50,
+        y: 250,
+        width: 100,
+        height: 40,
+        fill: '#fafafa',
+        stroke: '#d9d9d9',
+        text: 'Name',
+        textColor: '#000000'
+      },
+      {
+        id: 2,
+        x: 150,
+        y: 250,
+        width: 100,
+        height: 40,
+        fill: '#fafafa',
+        stroke: '#d9d9d9',
+        text: 'Age',
+        textColor: '#000000'
+      },
+      {
+        id: 3,
+        x: 250,
+        y: 250,
+        width: 100,
+        height: 40,
+        fill: '#fafafa',
+        stroke: '#d9d9d9',
+        text: 'City',
+        textColor: '#000000'
+      },
+      {
+        id: 4,
+        x: 50,
+        y: 290,
+        width: 100,
+        height: 40,
+        fill: '#ffffff',
+        stroke: '#d9d9d9',
+        text: 'Alice',
+        textColor: '#000000'
+      },
+      {
+        id: 5,
+        x: 150,
+        y: 290,
+        width: 100,
+        height: 40,
+        fill: '#ffffff',
+        stroke: '#d9d9d9',
+        text: '25',
+        textColor: '#000000'
+      },
+      {
+        id: 6,
+        x: 250,
+        y: 290,
+        width: 100,
+        height: 40,
+        fill: '#ffffff',
+        stroke: '#d9d9d9',
+        text: 'NYC',
+        textColor: '#000000'
+      },
+      {
+        id: 7,
+        x: 50,
+        y: 330,
+        width: 100,
+        height: 40,
+        fill: '#ffffff',
+        stroke: '#d9d9d9',
+        text: 'Bob',
+        textColor: '#000000'
+      },
+      {
+        id: 8,
+        x: 150,
+        y: 330,
+        width: 100,
+        height: 40,
+        fill: '#ffffff',
+        stroke: '#d9d9d9',
+        text: '30',
+        textColor: '#000000'
+      },
+      {
+        id: 9,
+        x: 250,
+        y: 330,
+        width: 100,
+        height: 40,
+        fill: '#ffffff',
+        stroke: '#d9d9d9',
+        text: 'LA',
+        textColor: '#000000'
+      }
     ]
 
     chart
       .shape()
       .data(cellData)
-      .encode('x', 'id')  // 编码虚拟字段
-      .encode('y', 'id')  // y channel 也需要编码
+      .encode('x', 'id') // 编码虚拟字段
+      .encode('y', 'id') // y channel 也需要编码
       .style('render', (_style: any, context: any, index: number) => {
         const { document } = context
 
@@ -348,8 +467,8 @@ export function testG2API() {
             height: data.height,
             fill: data.fill,
             stroke: data.stroke,
-            lineWidth: 1,
-          },
+            lineWidth: 1
+          }
         })
         group.appendChild(rect)
 
@@ -363,8 +482,8 @@ export function testG2API() {
             fontSize: 14,
             textAlign: 'center',
             textBaseline: 'middle',
-            fontFamily: 'Arial, sans-serif',
-          },
+            fontFamily: 'Arial, sans-serif'
+          }
         })
         group.appendChild(text)
 
@@ -407,7 +526,12 @@ function getCheckmarkPath(x: number, y: number, size: number): string {
 }
 
 // 辅助函数：生成三角形路径
-function getTrianglePath(cx: number, cy: number, size: number, direction: 'up' | 'down'): string {
+function getTrianglePath(
+  cx: number,
+  cy: number,
+  size: number,
+  direction: 'up' | 'down'
+): string {
   const half = size / 2
   if (direction === 'up') {
     return `M ${cx} ${cy - half} L ${cx - half} ${cy + half} L ${cx + half} ${cy + half} Z`
@@ -418,5 +542,5 @@ function getTrianglePath(cx: number, cy: number, size: number, direction: 'up' |
 
 // 导出供外部调用
 if (typeof window !== 'undefined') {
-  (window as any).testG2API = testG2API
+  ;(window as any).testG2API = testG2API
 }

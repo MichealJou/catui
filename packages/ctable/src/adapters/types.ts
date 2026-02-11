@@ -4,30 +4,17 @@
  */
 
 // ============================================================
-// 分页组件适配器接口
+// 从主类型文件导入
 // ============================================================
 
-/**
- * 分页配置接口
- */
-export interface PaginationConfig {
-  current?: number
-  defaultCurrent?: number
-  pageSize?: number
-  defaultPageSize?: number
-  total: number
-  disabled?: boolean
-  showSizeChanger?: boolean
-  showQuickJumper?: boolean
-  showTotal?: (total: number, range: [number, number]) => string
-  pageSizeOptions?: number[]
-  simple?: boolean
-  size?: 'small' | 'default' | ''
-  hideOnSinglePage?: boolean
-  showLessItems?: boolean
-  prevText?: string
-  nextText?: string
-}
+import type { PaginationConfig } from '../types'
+
+// 重新导出分页配置，保持 API 一致性
+export type { PaginationConfig }
+
+// ============================================================
+// 分页组件适配器接口
+// ============================================================
 
 /**
  * 分页事件接口
@@ -54,7 +41,11 @@ export interface PaginationSlots {
   /** 下一页文字插槽 */
   nextText?: () => any
   /** 页码选项插槽 */
-  pageItem?: (props: { page: number; active: boolean; disabled: boolean }) => any
+  pageItem?: (props: {
+    page: number
+    active: boolean
+    disabled: boolean
+  }) => any
   /** 每页条数选项插槽 */
   pageSizeOption?: (props: { size: number }) => any
   /** 自定义渲染插槽 */
@@ -104,7 +95,11 @@ export interface PaginationAdapter {
 /**
  * 支持的组件库类型
  */
-export type ComponentLibrary = 'ant-design-vue' | 'element-plus' | 'naive-ui' | 'default'
+export type ComponentLibrary =
+  | 'ant-design-vue'
+  | 'element-plus'
+  | 'naive-ui'
+  | 'default'
 
 /**
  * 组件适配器配置

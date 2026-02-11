@@ -9,7 +9,19 @@
       "Bash(pnpm install:*)",
       "Bash(pnpm run build:canvas-table:*)",
       "Bash(curl:*)",
-      "mcp__web-reader__webReader"
+      "mcp__web-reader__webReader",
+      "Bash(pnpm remove:*)",
+      "Bash(pnpm --filter @catui/demo remove:*)",
+      "Bash(oxlint:*)",
+      "Bash(pnpm exec oxlint:*)",
+      "Bash(pnpm exec prettier:*)",
+      "Bash(pnpm list:*)",
+      "Bash(pnpm:*)",
+      "Bash(npx skills add:*)",
+      "Bash(npm view @modelcontextprotocol/server-yuque)",
+      "Bash(ls:*)",
+      "mcp__zai-mcp-server__analyze_image",
+      "mcp__zread__search_doc"
     ]
   }
 }

@@ -1,5 +1,13 @@
 export type SortOrder = 'asc' | 'desc' | null
-export type FilterType = 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'greaterThan' | 'lessThan' | 'range' | 'list'
+export type FilterType =
+  | 'equals'
+  | 'contains'
+  | 'startsWith'
+  | 'endsWith'
+  | 'greaterThan'
+  | 'lessThan'
+  | 'range'
+  | 'list'
 
 export interface FilterCondition {
   field: string
@@ -64,8 +72,8 @@ export interface ThemeColors {
   hover: string
   selected: string
   footer: string
-  stripe?: string  // 斑马纹颜色（隔行变色）
-  fixedShadow?: string  // 固定列阴影颜色
+  stripe?: string // 斑马纹颜色（隔行变色）
+  fixedShadow?: string // 固定列阴影颜色
 }
 
 export interface ThemeFonts {

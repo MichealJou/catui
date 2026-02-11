@@ -34,7 +34,10 @@ export class VirtualScroll {
     return Math.max(0, totalHeight - this.containerHeight)
   }
 
-  getVisibleRange(containerHeight: number): { startIndex: number; endIndex: number } {
+  getVisibleRange(containerHeight: number): {
+    startIndex: number
+    endIndex: number
+  } {
     const visibleCount = Math.ceil(containerHeight / this.itemSize)
     let startIndex = Math.floor(this.scrollTop / this.itemSize)
     let endIndex = startIndex + visibleCount
@@ -66,4 +69,3 @@ export function useVirtualScroll(itemSize: number) {
     virtualScroll
   }
 }
-

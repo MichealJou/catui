@@ -39,7 +39,10 @@ export class AdapterManager {
     // 注册自定义适配器
     if (config.customAdapters) {
       if (config.customAdapters.pagination) {
-        this.registerPaginationAdapter('custom', config.customAdapters.pagination)
+        this.registerPaginationAdapter(
+          'custom',
+          config.customAdapters.pagination
+        )
       }
       if (config.customAdapters.loading) {
         this.registerLoadingAdapter('custom', config.customAdapters.loading)
@@ -86,20 +89,28 @@ export class AdapterManager {
         console.log('[CTable] Using ant-design-vue pagination adapter')
         return AntDesignVuePaginationAdapter
       } else {
-        console.warn('[CTable] ant-design-vue requested but not available. Falling back to default.')
+        console.warn(
+          '[CTable] ant-design-vue requested but not available. Falling back to default.'
+        )
       }
     } else if (library === 'element-plus') {
       // TODO: 实现 element-plus 适配器
-      console.warn('[CTable] element-plus adapter not implemented yet. Using default.')
+      console.warn(
+        '[CTable] element-plus adapter not implemented yet. Using default.'
+      )
     } else if (library === 'naive-ui') {
       // TODO: 实现 naive-ui 适配器
-      console.warn('[CTable] naive-ui adapter not implemented yet. Using default.')
+      console.warn(
+        '[CTable] naive-ui adapter not implemented yet. Using default.'
+      )
     }
 
     // 3. 默认尝试 ant-design-vue
     if (!library || library === 'default') {
       if (AntDesignVuePaginationAdapter.isAvailable()) {
-        console.log('[CTable] Using ant-design-vue pagination adapter (default)')
+        console.log(
+          '[CTable] Using ant-design-vue pagination adapter (default)'
+        )
         return AntDesignVuePaginationAdapter
       }
     }
@@ -134,21 +145,27 @@ export class AdapterManager {
         console.log('[CTable] Using ant-design-vue loading adapter')
         return AntDesignVueLoadingAdapter
       } else {
-        console.warn('[CTable] ant-design-vue requested but not available. Falling back to default.')
+        console.warn(
+          '[CTable] ant-design-vue requested but not available. Falling back to default.'
+        )
       }
     } else if (library === 'element-plus') {
       if (ElementPlusLoadingAdapter.isAvailable()) {
         console.log('[CTable] Using element-plus loading adapter')
         return ElementPlusLoadingAdapter
       } else {
-        console.warn('[CTable] element-plus requested but not available. Falling back to default.')
+        console.warn(
+          '[CTable] element-plus requested but not available. Falling back to default.'
+        )
       }
     } else if (library === 'naive-ui') {
       if (NaiveUiLoadingAdapter.isAvailable()) {
         console.log('[CTable] Using naive-ui loading adapter')
         return NaiveUiLoadingAdapter
       } else {
-        console.warn('[CTable] naive-ui requested but not available. Falling back to default.')
+        console.warn(
+          '[CTable] naive-ui requested but not available. Falling back to default.'
+        )
       }
     }
 
@@ -242,7 +259,10 @@ export function createLoadingComponent(
 export function isLibraryAvailable(library: ComponentLibrary): boolean {
   switch (library) {
     case 'ant-design-vue':
-      return AntDesignVuePaginationAdapter.isAvailable() || AntDesignVueLoadingAdapter.isAvailable()
+      return (
+        AntDesignVuePaginationAdapter.isAvailable() ||
+        AntDesignVueLoadingAdapter.isAvailable()
+      )
     case 'element-plus':
       return ElementPlusLoadingAdapter.isAvailable()
     case 'naive-ui':

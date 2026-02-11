@@ -1,0 +1,13 @@
+{
+  "token": "your_yuque_personal_access_token",
+  "baseUrl": "https://www.yuque.com",
+  "repo": {
+    "id": "your_repo_id",
+    "name": "your_repo_name",
+    "namespace": "your_namespace"
+  },
+  "default": {
+    "folder": "CatUI",
+    "format": "markdown"
+  }
+}

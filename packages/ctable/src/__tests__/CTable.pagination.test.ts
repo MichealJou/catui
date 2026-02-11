@@ -222,7 +222,9 @@ describe('CTable - 分页功能', () => {
 
       // 验证 showTotal 函数正确配置
       expect(pagination.value.showTotal).toBeDefined()
-      expect(pagination.value.showTotal!(100, [1, 10])).toBe('显示 1-10 条，共 100 条')
+      expect(pagination.value.showTotal!(100, [1, 10])).toBe(
+        '显示 1-10 条，共 100 条'
+      )
     })
 
     it('应该支持每页条数选择器', async () => {

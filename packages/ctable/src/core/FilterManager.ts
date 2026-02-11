@@ -1,12 +1,4 @@
-export type FilterType = 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'greaterThan' | 'lessThan' | 'range' | 'list'
-
-export interface FilterCondition {
-  field: string
-  type: FilterType
-  value: any
-  value2?: any // 用于范围筛选
-  options?: any[] // 用于列表筛选
-}
+import type { FilterCondition } from '../types'
 
 export class FilterManager {
   private filters: Map<string, FilterCondition> = new Map()
@@ -15,7 +7,11 @@ export class FilterManager {
    * 设置筛选条件
    */
   setFilter(condition: FilterCondition) {
-    if (condition.value === null || condition.value === undefined || condition.value === '') {
+    if (
+      condition.value === null ||
+      condition.value === undefined ||
+      condition.value === ''
+    ) {
       this.filters.delete(condition.field)
     } else {
       this.filters.set(condition.field, condition)
@@ -79,7 +75,10 @@ export class FilterManager {
   /**
    * 检查单个数据项是否匹配筛选条件
    */
-  private matchFilter(item: Record<string, any>, filter: FilterCondition): boolean {
+  private matchFilter(
+    item: Record<string, any>,
+    filter: FilterCondition
+  ): boolean {
     const { field, type, value, value2, options } = filter
     const itemValue = item[field]
 
@@ -88,13 +87,19 @@ export class FilterManager {
         return itemValue == value
 
       case 'contains':
-        return String(itemValue || '').toLowerCase().includes(String(value).toLowerCase())
+        return String(itemValue || '')
+          .toLowerCase()
+          .includes(String(value).toLowerCase())
 
       case 'startsWith':
-        return String(itemValue || '').toLowerCase().startsWith(String(value).toLowerCase())
+        return String(itemValue || '')
+          .toLowerCase()
+          .startsWith(String(value).toLowerCase())
 
       case 'endsWith':
-        return String(itemValue || '').toLowerCase().endsWith(String(value).toLowerCase())
+        return String(itemValue || '')
+          .toLowerCase()
+          .endsWith(String(value).toLowerCase())
 
       case 'greaterThan':
         return Number(itemValue) > Number(value)
@@ -120,7 +125,10 @@ export class FilterManager {
   /**
    * 获取唯一值列表（用于列表筛选）
    */
-  getUniqueValues<T extends Record<string, any>>(data: T[], field: string): any[] {
+  getUniqueValues<T extends Record<string, any>>(
+    data: T[],
+    field: string
+  ): any[] {
     const values = new Set<any>()
     data.forEach(item => {
       const value = item[field]

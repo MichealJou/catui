@@ -4,7 +4,10 @@
  */
 import type { ThemeConfig, ThemePreset } from '../types'
 import { antDesignTheme, antDesignDarkTheme } from '../theme/presets/ant-design'
-import { elementPlusTheme, elementPlusDarkTheme } from '../theme/presets/element-plus'
+import {
+  elementPlusTheme,
+  elementPlusDarkTheme
+} from '../theme/presets/element-plus'
 import { naiveTheme, naiveDarkTheme } from '../theme/presets/naive'
 
 // ============================================================================
@@ -16,7 +19,7 @@ const THEME_PRESETS: Record<ThemePreset, ThemeConfig> = {
   'ant-design-dark': antDesignDarkTheme,
   'element-plus': elementPlusTheme,
   'element-plus-dark': elementPlusDarkTheme,
-  'naive': naiveTheme,
+  naive: naiveTheme,
   'naive-dark': naiveDarkTheme
 }
 
@@ -152,11 +155,13 @@ export function useThemeManager(initialTheme?: ThemeConfig | ThemePreset) {
 
   return {
     themeManager,
-    setTheme: (theme: ThemeConfig | ThemePreset) => themeManager.setTheme(theme),
+    setTheme: (theme: ThemeConfig | ThemePreset) =>
+      themeManager.setTheme(theme),
     setThemeByName: (name: ThemePreset) => themeManager.setThemeByName(name),
     getTheme: () => themeManager.getTheme(),
     getCurrentPreset: () => themeManager.getCurrentPreset(),
-    onChange: (callback: (theme: ThemeConfig) => void) => themeManager.onChange(callback)
+    onChange: (callback: (theme: ThemeConfig) => void) =>
+      themeManager.onChange(callback)
   }
 }
 

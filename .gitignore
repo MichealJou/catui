@@ -43,6 +43,12 @@ desktop.ini
 
 # Development ttrae/
 
+# Claude Code local settings
+.claude/settings.local.json
+
+# Yuque MCP configuration (contains sensitive tokens)
+.claude/yuque-mcp.json
+
 # Large dependency folders that are not needed for source code
 apps/demo/node_modules/
 packages/*/node_modules/

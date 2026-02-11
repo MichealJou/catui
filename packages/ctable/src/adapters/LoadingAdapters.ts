@@ -46,43 +46,63 @@ export const DefaultLoadingAdapter: LoadingAdapter = {
             return slots?.default ? slots.default() : null
           }
 
-          return h('div', {
-            class: ['ctable-loading-overlay', config.wrapperClassName],
-            style: {
-              position: 'absolute',
-              top: '0',
-              left: '0',
-              right: '0',
-              bottom: '0',
-              backgroundColor: 'rgba(255, 255, 255, 0.8)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: '9999'
-            }
-          }, [
-            // 加载指示器
-            h('div', {
-              class: 'ctable-loading-spinner',
+          return h(
+            'div',
+            {
+              class: ['ctable-loading-overlay', config.wrapperClassName],
               style: {
-                width: config.size === 'small' ? '20px' : config.size === 'large' ? '40px' : '30px',
-                height: config.size === 'small' ? '20px' : config.size === 'large' ? '40px' : '30px',
-                border: '3px solid #f3f3f3',
-                borderTop: '3px solid #1890ff',
-                borderRadius: '50%',
-                animation: 'ctable-spin 1s linear infinite'
+                position: 'absolute',
+                top: '0',
+                left: '0',
+                right: '0',
+                bottom: '0',
+                backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: '9999'
               }
-            }),
-            // 提示文字
-            config.tip ? h('div', {
-              style: {
-                marginTop: '12px',
-                color: '#666',
-                fontSize: '14px'
-              }
-            }, config.tip) : null
-          ])
+            },
+            [
+              // 加载指示器
+              h('div', {
+                class: 'ctable-loading-spinner',
+                style: {
+                  width:
+                    config.size === 'small'
+                      ? '20px'
+                      : config.size === 'large'
+                        ? '40px'
+                        : '30px',
+                  height:
+                    config.size === 'small'
+                      ? '20px'
+                      : config.size === 'large'
+                        ? '40px'
+                        : '30px',
+                  border: '3px solid #f3f3f3',
+                  borderTop: '3px solid #1890ff',
+                  borderRadius: '50%',
+                  animation: 'ctable-spin 1s linear infinite'
+                }
+              }),
+              // 提示文字
+              config.tip
+                ? h(
+                    'div',
+                    {
+                      style: {
+                        marginTop: '12px',
+                        color: '#666',
+                        fontSize: '14px'
+                      }
+                    },
+                    config.tip
+                  )
+                : null
+            ]
+          )
         }
       }
     })
@@ -115,23 +135,30 @@ export const AntDesignVueLoadingAdapter: LoadingAdapter = {
 
   createComponent(config: LoadingConfig, slots?: LoadingSlots) {
     if (!this.isAvailable()) {
-      console.warn('ant-design-vue Spin component is not available, falling back to default loading')
+      console.warn(
+        'ant-design-vue Spin component is not available, falling back to default loading'
+      )
       return DefaultLoadingAdapter.createComponent(config, slots)
     }
 
     return defineComponent({
       name: 'AntDesignVueLoading',
       setup(_, { slots }) {
-        return () => h(AntDesignVueSpin, {
-          spinning: config.spinning,
-          delay: config.delay,
-          size: config.size,
-          tip: config.tip,
-          wrapperClassName: config.wrapperClassName
-        }, {
-          default: slots?.default || (() => null),
-          indicator: slots?.indicator
-        })
+        return () =>
+          h(
+            AntDesignVueSpin,
+            {
+              spinning: config.spinning,
+              delay: config.delay,
+              size: config.size,
+              tip: config.tip,
+              wrapperClassName: config.wrapperClassName
+            },
+            {
+              default: slots?.default || (() => null),
+              indicator: slots?.indicator
+            }
+          )
       }
     })
   }
@@ -165,7 +192,9 @@ export const ElementPlusLoadingAdapter: LoadingAdapter = {
 
   createComponent(config: LoadingConfig, slots?: LoadingSlots) {
     if (!this.isAvailable()) {
-      console.warn('element-plus loading is not available, falling back to default loading')
+      console.warn(
+        'element-plus loading is not available, falling back to default loading'
+      )
       return DefaultLoadingAdapter.createComponent(config, slots)
     }
 
@@ -177,41 +206,61 @@ export const ElementPlusLoadingAdapter: LoadingAdapter = {
             return slots?.default ? slots.default() : null
           }
 
-          return h('div', {
-            class: ['ctable-loading-overlay', config.wrapperClassName],
-            style: {
-              position: 'absolute',
-              top: '0',
-              left: '0',
-              right: '0',
-              bottom: '0',
-              backgroundColor: 'rgba(255, 255, 255, 0.8)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: '9999'
-            }
-          }, [
-            h('div', {
-              class: 'ctable-loading-spinner',
+          return h(
+            'div',
+            {
+              class: ['ctable-loading-overlay', config.wrapperClassName],
               style: {
-                width: config.size === 'small' ? '20px' : config.size === 'large' ? '40px' : '30px',
-                height: config.size === 'small' ? '20px' : config.size === 'large' ? '40px' : '30px',
-                border: '3px solid #f3f3f3',
-                borderTop: '3px solid #409eff',
-                borderRadius: '50%',
-                animation: 'ctable-spin 1s linear infinite'
+                position: 'absolute',
+                top: '0',
+                left: '0',
+                right: '0',
+                bottom: '0',
+                backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: '9999'
               }
-            }),
-            config.tip ? h('div', {
-              style: {
-                marginTop: '12px',
-                color: '#666',
-                fontSize: '14px'
-              }
-            }, config.tip) : null
-          ])
+            },
+            [
+              h('div', {
+                class: 'ctable-loading-spinner',
+                style: {
+                  width:
+                    config.size === 'small'
+                      ? '20px'
+                      : config.size === 'large'
+                        ? '40px'
+                        : '30px',
+                  height:
+                    config.size === 'small'
+                      ? '20px'
+                      : config.size === 'large'
+                        ? '40px'
+                        : '30px',
+                  border: '3px solid #f3f3f3',
+                  borderTop: '3px solid #409eff',
+                  borderRadius: '50%',
+                  animation: 'ctable-spin 1s linear infinite'
+                }
+              }),
+              config.tip
+                ? h(
+                    'div',
+                    {
+                      style: {
+                        marginTop: '12px',
+                        color: '#666',
+                        fontSize: '14px'
+                      }
+                    },
+                    config.tip
+                  )
+                : null
+            ]
+          )
         }
       }
     })
@@ -244,22 +293,34 @@ export const NaiveUiLoadingAdapter: LoadingAdapter = {
 
   createComponent(config: LoadingConfig, slots?: LoadingSlots) {
     if (!this.isAvailable()) {
-      console.warn('naive-ui NSpin component is not available, falling back to default loading')
+      console.warn(
+        'naive-ui NSpin component is not available, falling back to default loading'
+      )
       return DefaultLoadingAdapter.createComponent(config, slots)
     }
 
     return defineComponent({
       name: 'NaiveUiLoading',
       setup(_, { slots }) {
-        return () => h(NaiveUiSpin, {
-          show: config.spinning,
-          delay: config.delay,
-          size: config.size === 'small' ? 'small' : config.size === 'large' ? 'large' : 'medium',
-          description: config.tip,
-          class: config.wrapperClassName
-        }, {
-          default: slots?.default || (() => null)
-        })
+        return () =>
+          h(
+            NaiveUiSpin,
+            {
+              show: config.spinning,
+              delay: config.delay,
+              size:
+                config.size === 'small'
+                  ? 'small'
+                  : config.size === 'large'
+                    ? 'large'
+                    : 'medium',
+              description: config.tip,
+              class: config.wrapperClassName
+            },
+            {
+              default: slots?.default || (() => null)
+            }
+          )
       }
     })
   }

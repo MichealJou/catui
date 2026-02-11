@@ -9,7 +9,15 @@
 
 export type SortOrder = 'asc' | 'desc' | null
 export type SortDirection = 'ascend' | 'descend' | null
-export type FilterType = 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'greaterThan' | 'lessThan' | 'range' | 'list'
+export type FilterType =
+  | 'equals'
+  | 'contains'
+  | 'startsWith'
+  | 'endsWith'
+  | 'greaterThan'
+  | 'lessThan'
+  | 'range'
+  | 'list'
 
 // ============================================================================
 // 筛选相关类型
@@ -110,7 +118,7 @@ export interface Column {
   // === 排序 ===
   sorter?: boolean | ((a: any, b: any) => number) | SorterConfig
   sortOrder?: SortOrder | SortDirection
-  sortable?: boolean  // CTable 扩展属性：是否可排序
+  sortable?: boolean // CTable 扩展属性：是否可排序
 
   // === 筛选 ===
   filters?: FilterOption[]
@@ -119,7 +127,7 @@ export interface Column {
   onFilter?: (value: any, record: any) => boolean
   filteredValue?: any[]
   filterMultiple?: boolean
-  filterable?: boolean  // CTable 扩展属性：是否可筛选
+  filterable?: boolean // CTable 扩展属性：是否可筛选
 
   // === 自定义渲染 ===
   customRender?: ({ value, record, index, column }: any) => any
@@ -139,7 +147,7 @@ export interface Column {
 
   // === CTable 特有属性 ===
   render?: (data: any, row: number, column: Column) => any
-  children?: Column[]  // 嵌套列
+  children?: Column[] // 嵌套列
 }
 
 // ============================================================================
@@ -195,7 +203,13 @@ export interface ThemeConfig {
   spacing: ThemeSpacing
 }
 
-export type ThemePreset = 'ant-design' | 'ant-design-dark' | 'element-plus' | 'element-plus-dark' | 'naive' | 'naive-dark'
+export type ThemePreset =
+  | 'ant-design'
+  | 'ant-design-dark'
+  | 'element-plus'
+  | 'element-plus-dark'
+  | 'naive'
+  | 'naive-dark'
 
 // ============================================================================
 // 表格 Props 类型（兼容 Ant Design Vue）
@@ -203,8 +217,8 @@ export type ThemePreset = 'ant-design' | 'ant-design-dark' | 'element-plus' | 'e
 
 export interface CTableProps {
   // === 基础属性 ===
-  dataSource?: any[]  // 兼容 Ant Design Vue (dataSource)
-  data?: any[]        // 简化别名 (data)
+  dataSource?: any[] // 兼容 Ant Design Vue (dataSource)
+  data?: any[] // 简化别名 (data)
   columns?: Column[]
   rowKey?: string | ((row: any) => string)
 
@@ -229,8 +243,8 @@ export interface CTableProps {
 
   // === 选择属性 ===
   rowSelection?: RowSelectionConfig
-  selectable?: boolean  // CTable 扩展：是否可选择行
-  selectableType?: 'single' | 'multiple'  // CTable 扩展：选择类型
+  selectable?: boolean // CTable 扩展：是否可选择行
+  selectableType?: 'single' | 'multiple' // CTable 扩展：选择类型
 
   // === 展开行属性 ===
   expandedRowKeys?: any[]
@@ -303,7 +317,7 @@ export interface CTableEvents {
   'header-click': [column: Column, event: MouseEvent]
 
   // === 选择事件 ===
-  'select': [row: any, selected: boolean, rows: any[]]
+  select: [row: any, selected: boolean, rows: any[]]
   'select-all': [selected: boolean, rows: any[], changeRows: any[]]
   'selection-change': [selectedRows: any[], selectedKeys: any[]]
 
@@ -312,13 +326,13 @@ export interface CTableEvents {
   'filter-change': [filters: any]
 
   // === 滚动事件 ===
-  'scroll': [event: { scrollTop: number; scrollLeft: number }]
+  scroll: [event: { scrollTop: number; scrollLeft: number }]
 
   // === Table 变化事件（兼容 a-table） ===
-  'change': [pagination: any, filters: any, sorter: any]
+  change: [pagination: any, filters: any, sorter: any]
 
   // === 展开事件 ===
-  'expand': [expanded: boolean, record: any]
+  expand: [expanded: boolean, record: any]
 }
 
 // ============================================================================

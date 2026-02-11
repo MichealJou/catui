@@ -5,8 +5,8 @@ module.exports = {
   // 不使用分号
   semi: false,
 
-  // 每行最大字符数
-  printWidth: 100,
+  // 每行最大字符数（更严格的 80 字符）
+  printWidth: 80,
 
   // 缩进空格数
   tabWidth: 2,
@@ -22,10 +22,6 @@ module.exports = {
 
   // 尾随逗号
   trailingComma: 'none',
-
-  // 对象最后一项加逗号
-  // (与 trailingComma 冲突，这里主要控制对象字面量)
-  // 注意：Prettier 3.0+ 已移除此选项，统一使用 trailingComma
 
   // 大括号内空格
   bracketSpacing: true,
@@ -55,11 +51,5 @@ module.exports = {
   requirePragma: false,
 
   // prose wrap（Markdown 等）
-  proseWrap: 'preserve',
-
-  // HTML 空白符折叠
-  htmlWhitespaceSensitivity: 'css',
-
-  // 结束标签 > 换行
-  bracketSameLine: false
+  proseWrap: 'preserve'
 }
