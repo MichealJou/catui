@@ -104,7 +104,7 @@ export class VTableAdapter {
           title: '',
           width: col.width || 50,
           cellType: 'checkbox',
-          headerType: 'checkbox',
+          // 不设置 headerType 避免显示三个点菜单图标
           frozen:
             col.fixed === 'left'
               ? 'start'
@@ -368,18 +368,18 @@ export class VTableAdapter {
 
         // 列宽调整事件
         resize_column: (args: any) => {
-          const { col, width } = args
-          const column = this.options.columns[col]
+          const { width, col: columnData } = args
+          const column = this.options.columns.find(c => c.key === columnData.field)
           if (column) {
-            const defaultWidth =
-              typeof column.width === 'number' ? column.width : 120
+            const defaultWidth = typeof column.width === 'number' ? column.width : 120
             const oldWidth = this.columnWidths.get(column.key) ?? defaultWidth
             this.columnWidths.set(column.key, width)
 
             if (this.options.onColumnResize) {
+              const colIndex = this.options.columns.indexOf(column)
               this.options.onColumnResize({
                 column: column.key,
-                columnIndex: col,
+                columnIndex: colIndex,
                 oldWidth,
                 newWidth: width
               })
@@ -387,40 +387,29 @@ export class VTableAdapter {
           }
         },
 
-        // 复选框选择事件
+        // 复选框选择事件 - VTable 自动触发
         checkbox_change: (_args: any) => {
-          if (this.options.rowSelection?.onChange) {
-            const currentRecords = this.table.getRecords()
-            const selectedKeys: any[] = []
-            const selectedRows: any[] = []
-
-            currentRecords.forEach((record: any) => {
-              if (record.checkbox) {
-                const rowKey = this.getRowKey(record)
-                selectedKeys.push(rowKey)
-                selectedRows.push(record)
-              }
-            })
-
-            this.options.rowSelection.onChange(selectedRows, selectedKeys)
-          }
+          // VTable 会自动通过 checkbox_state_change 通知变化
+          // 这里保持空实现，避免重复处理
         },
 
-        // 选中行变化事件
+        // 选中行变化事件 - 使用 VTable 原生数据
         checkbox_state_change: (args: any) => {
           if (this.options.rowSelection?.onChange) {
+            // 直接使用 VTable 提供的选中记录
             const { records } = args
             const selectedKeys: any[] = []
             const selectedRows: any[] = []
 
             if (records && Array.isArray(records)) {
-              records.forEach((record: any) => {
+              for (const record of records) {
                 const rowKey = this.getRowKey(record)
                 selectedKeys.push(rowKey)
                 selectedRows.push(record)
-              })
+              }
             }
 
+            // 按照用户要求的顺序：selectedRows, selectedKeys
             this.options.rowSelection.onChange(selectedRows, selectedKeys)
           }
         }
@@ -471,28 +460,41 @@ export class VTableAdapter {
   }
 
   /**
-   * 获取选中的行
+   * 获取选中的行 - 使用 VTable 原生 API
    */
   getSelectedRows(): any[] {
-    // VTable 的选择状态管理需要通过事件监听实现
-    // 这里返回空数组，实际使用时需要通过 onChange 回调获取
-    return []
+    if (!this.table) return []
+
+    // VTable 提供的获取选中行方法
+    // @ts-ignore - VTable 内部 API
+    const selectedRecords = this.table.getSelectedRecords?.() || []
+    return selectedRecords
   }
 
   /**
-   * 设置选中的行
+   * 设置选中的行 - 使用 VTable 原生 API
    */
   setSelectedRows(selectedRowKeys: any[]) {
-    // VTable 的选择状态更新需要更新数据中的 checkbox 字段
     if (!this.table) return
 
-    const data = this.convertData(this.options.data)
-    data.forEach((row: any) => {
-      const rowKey = this.getRowKey(row)
-      row.checkbox = selectedRowKeys.includes(rowKey)
-    })
-
-    this.table.setRecords(data)
+    // VTable 提供的设置选中行方法
+    // @ts-ignore - VTable 内部 API
+    if (typeof this.table.setSelectedRecords === 'function') {
+      const selectedRows = this.options.data.filter(row => {
+        const rowKey = this.getRowKey(row)
+        return selectedRowKeys.includes(rowKey)
+      })
+      // @ts-ignore
+      this.table.setSelectedRecords(selectedRows)
+    } else {
+      // 降级方案：修改数据中的 checkbox 字段
+      const data = this.convertData(this.options.data)
+      for (const row of data) {
+        const rowKey = this.getRowKey(row)
+        row.checkbox = selectedRowKeys.includes(rowKey)
+      }
+      this.table.setRecords(data)
+    }
   }
 
   /**
