@@ -101,7 +101,7 @@ export interface RowSelectionConfig {
 export interface Column {
   // === 基础属性 ===
   key: string
-  title: string
+  title?: string
   dataIndex?: string | string[]
 
   // === 列宽控制 ===
@@ -142,7 +142,7 @@ export interface Column {
   responsive?: ['xs' | 'sm' | 'md' | 'lg' | 'xl']
 
   // === 拖拽 ===
-  resizable?: boolean
+  resizable?: boolean | ColumnResizeConfig
   draggable?: boolean
 
   // === CTable 特有属性 ===
@@ -265,6 +265,7 @@ export interface CTableProps {
   theme?: ThemePreset | ThemeConfig
   virtualScroll?: boolean
   renderer?: 'g2' | 'canvas'
+  resizable?: boolean | ResizeConfig
   fixedColumns?: {
     left?: number
     right?: number
@@ -325,6 +326,10 @@ export interface CTableEvents {
   'sort-change': [sorter: any]
   'filter-change': [filters: any]
 
+  // === 列宽调整事件 ===
+  'column-resize': [info: ColumnResizeInfo]
+  'column-resize-end': [info: ColumnResizeInfo]
+
   // === 滚动事件 ===
   scroll: [event: { scrollTop: number; scrollLeft: number }]
 
@@ -364,4 +369,40 @@ export interface CTablePlugin {
   version?: string
   install: (instance: any) => void
   uninstall?: (instance: any) => void
+}
+
+// ============================================================================
+// 列宽调整类型 (多角色协同开发)
+// ============================================================================
+
+export interface ColumnResizeConfig {
+  enable?: boolean
+  minWidth?: number
+  maxWidth?: number
+}
+
+export interface ResizeConfig {
+  enabled?: boolean
+  hitAreaWidth?: number
+  minWidth?: number
+  maxWidth?: number
+  mode?: 'single' | 'adjacent'
+  dblClickAutoSize?: boolean
+  showSizeTooltip?: boolean
+}
+
+export interface ColumnResizeInfo {
+  column: string
+  columnIndex: number
+  oldWidth: number
+  newWidth: number
+  event?: MouseEvent
+}
+
+export interface ColumnResizeEndInfo extends ColumnResizeInfo {
+  isAutoSize?: boolean
+  columns?: Array<{
+    key: string
+    width: number
+  }>
 }

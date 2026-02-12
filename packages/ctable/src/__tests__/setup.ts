@@ -13,6 +13,7 @@ class MockCanvasRenderingContext2D {
   textAlign = 'left' as const
   textBaseline = 'top' as const
   globalAlpha = 1
+  canvas = { width: 800, height: 600 }
 
   fillRect() {}
   strokeRect() {}
@@ -31,9 +32,35 @@ class MockCanvasRenderingContext2D {
   rotate() {}
   translate() {}
   transform() {}
+  measureText(text: string) { return { width: text.length * 6 } }
 }
 
-global.HTMLCanvasElement.prototype.getContext = vi.fn(contextType => {
+class MockCanvas {
+  width = 800
+  height = 600
+  contextType: '2d' | null = null
+
+  getContext(contextType: string) {
+    if (contextType === '2d') {
+      this.contextType = '2d'
+      return new MockCanvasRenderingContext2D() as any
+    }
+    return null
+  }
+
+  toDataURL() { return '' }
+  toBlob() {}
+}
+
+// VTable 需要全局 createCanvas 函数
+global.createCanvas = vi.fn((width: number, height: number) => {
+  const canvas = new MockCanvas()
+  canvas.width = width
+  canvas.height = height
+  return canvas as any
+}) as any
+
+global.HTMLCanvasElement.prototype.getContext = vi.fn(function(this: HTMLCanvasElement, contextType: string) {
   if (contextType === '2d') {
     return new MockCanvasRenderingContext2D() as any
   }
@@ -52,14 +79,16 @@ global.requestAnimationFrame = vi.fn(cb => setTimeout(cb, 16))
 global.cancelAnimationFrame = vi.fn()
 
 // Mock getBoundingClientRect
-Element.prototype.getBoundingClientRect = vi.fn(() => ({
-  width: 800,
-  height: 600,
-  top: 0,
-  left: 0,
-  bottom: 600,
-  right: 800,
-  x: 0,
-  y: 0,
-  toJSON: vi.fn()
-}))
+Element.prototype.getBoundingClientRect = vi.fn(function(this: Element) {
+  return {
+    width: 800,
+    height: 600,
+    top: 0,
+    left: 0,
+    bottom: 600,
+    right: 800,
+    x: 0,
+    y: 0,
+    toJSON: vi.fn()
+  }
+})

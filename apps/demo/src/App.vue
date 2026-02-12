@@ -65,7 +65,11 @@
         :height="600"
         :theme="currentTheme"
         :virtual-scroll="true"
-        :row-selection="{ type: 'checkbox', selectedRowKeys: selectedKeys }"
+        :row-selection="{
+          type: 'checkbox',
+          selectedRowKeys: selectedKeys,
+          onChange: handleSelectionChange
+        }"
         :pagination="false"
         @cell-click="handleCellClick"
         @row-click="handleRowClick"
@@ -108,13 +112,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue'
+import type { Column, ThemePreset } from '@catui/ctable'
 import { CTable } from '@catui/ctable'
-import type { Column } from '@catui/ctable'
-import type { ThemePreset } from '@catui/ctable'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 // @ts-ignore
-import { testG2API } from './test-g2-api'
 import CLoading from './components/CLoading.vue'
+import { testG2API } from './test-g2-api'
 
 interface TestData {
   id: number
@@ -204,7 +207,6 @@ const bordered = ref(true)
 const columns = reactive<Column[]>([
   {
     key: '__checkbox__',
-    title: '选择',
     width: 50,
     align: 'center',
     fixed: 'left'
@@ -302,7 +304,7 @@ onMounted(() => {
 
       // 表格宽度应该等于容器宽度
       // VTable 内部会自动处理横向滚动
-      const newWidth = containerWidth - 2  // 减 2 留出边框空间
+      const newWidth = containerWidth - 2 // 减 2 留出边框空间
 
       // 只在宽度真正改变时才更新
       if (Math.abs(newWidth - tableWidth.value) > 10) {
@@ -330,7 +332,7 @@ const updateTableWidth = () => {
 
     // 表格宽度应该等于容器宽度
     // VTable 内部会自动处理横向滚动，当列总宽度 > 容器宽度时
-    tableWidth.value = containerWidth - 2  // 减 2 留出边框空间
+    tableWidth.value = containerWidth - 2 // 减 2 留出边框空间
   }
 }
 
@@ -393,8 +395,13 @@ const generateData = (count: number) => {
         id: i,
         name: `用户 ${i}`,
         age: 20 + Math.floor(Math.random() * 40),
-        address: `${cities[Math.floor(Math.random() * cities.length)]}市第${i}大街`,
-        phone: `138${String(Math.floor(Math.random() * 100000000)).padStart(8, '0')}`,
+        address: `${
+          cities[Math.floor(Math.random() * cities.length)]
+        }市第${i}大街`,
+        phone: `138${String(Math.floor(Math.random() * 100000000)).padStart(
+          8,
+          '0'
+        )}`,
         job: jobs[Math.floor(Math.random() * jobs.length)],
         salary: 5000 + Math.floor(Math.random() * 50000),
         date: new Date(
@@ -430,8 +437,13 @@ const generateData = (count: number) => {
             id: i,
             name: `用户 ${i}`,
             age: 20 + Math.floor(Math.random() * 40),
-            address: `${cities[Math.floor(Math.random() * cities.length)]}市第${i}大街`,
-            phone: `138${String(Math.floor(Math.random() * 100000000)).padStart(8, '0')}`,
+            address: `${
+              cities[Math.floor(Math.random() * cities.length)]
+            }市第${i}大街`,
+            phone: `138${String(Math.floor(Math.random() * 100000000)).padStart(
+              8,
+              '0'
+            )}`,
             job: jobs[Math.floor(Math.random() * jobs.length)],
             salary: 5000 + Math.floor(Math.random() * 50000),
             date: new Date(
@@ -439,7 +451,8 @@ const generateData = (count: number) => {
               Math.floor(Math.random() * 12),
               Math.floor(Math.random() * 28) + 1
             ).toLocaleDateString(),
-            department: departments[Math.floor(Math.random() * departments.length)],
+            department:
+              departments[Math.floor(Math.random() * departments.length)],
             email: `user${i}@example.com`,
             notes: `备注信息 ${i}`
           })
@@ -487,7 +500,9 @@ const toggleTheme = () => {
 const togglePaginationMode = () => {
   currentPaginationMode.value =
     (currentPaginationMode.value + 1) % paginationModes.length
-  lastAction.value = `切换分页模式为 ${paginationModes[currentPaginationMode.value].name}`
+  lastAction.value = `切换分页模式为 ${
+    paginationModes[currentPaginationMode.value].name
+  }`
 }
 
 // 获取主题显示名称
@@ -604,7 +619,7 @@ const runG2Test = () => {
   margin-bottom: 20px;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
-  overflow: hidden;  /* 改为 hidden，让 VTable 内部处理滚动 */
+  overflow: hidden; /* 改为 hidden，让 VTable 内部处理滚动 */
   width: 100%;
 }
 

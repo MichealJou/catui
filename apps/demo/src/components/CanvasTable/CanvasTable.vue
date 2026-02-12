@@ -80,8 +80,8 @@ const scrollbarDragStartScrollTop = ref(0)
 const containerStyle = computed<CSSProperties>(() => ({
   width: `${props.width}px`,
   height: `${props.height}px`,
-  position: 'relative' as 'relative',
-  overflow: 'hidden' as 'hidden',
+  position: 'relative' as const,
+  overflow: 'hidden' as const,
   backgroundColor: getTheme().colors.background
 }))
 
@@ -98,7 +98,7 @@ const scrollbarStyle = computed<CSSProperties>(() => {
   // 表格已完全填充容器宽度（最后一列自动扩展）
   // 滚动条紧贴容器右边缘，与 ant-design-vue 表格样式一致
   return {
-    position: 'absolute' as 'absolute',
+    position: 'absolute' as const,
     right: '0px',
     top: `${getTheme().spacing.header}px`,
     width: '10px',
@@ -123,7 +123,7 @@ const scrollbarThumbStyle = computed<CSSProperties>(() => {
     (scrollbarHeight - thumbHeight)
 
   return {
-    position: 'absolute' as 'absolute',
+    position: 'absolute' as const,
     top: `${thumbTop}px`,
     right: '2px',
     width: '6px',

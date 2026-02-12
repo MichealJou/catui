@@ -1,91 +1,95 @@
 /**
- * Element Plus 主题配置 - VTable 版本
- * 完美匹配 Element Plus Table 视觉风格
+ * Element Plus 2.x 主题配置 - VTable 版本
+ * 完全匹配 Element Plus Table 视觉规范
+ * https://element-plus.org/zh-CN/component/table.html
  */
 
 export const elementPlusVTableTheme = {
-  // 基础颜色
   colors: {
-    // 背景色
     bgColor: '#ffffff',
     headerBgColor: '#f5f7fa',
+    footerBgColor: '#f5f7fa',
     headerTextColor: '#606266',
     textColor: '#606266',
-
-    // 边框色
+    headerSortActiveTextColor: '#409eff',
+    headerSortHoverTextColor: '#409eff',
     borderColor: '#ebeef5',
-
-    // 交互状态
+    headerBorderColor: '#ebeef5',
+    cellBorderColor: '#ebeef5',
+    headerCellBorderColor: '#ebeef5',
     hoverColor: '#f5f7fa',
+    hoverBorderColor: '#ebeef5',
     selectColor: '#ecf5ff',
-
-    // 品牌色
+    selectBorderColor: '#c6e2ff',
+    expandedRowBg: '#f5f7fa',
     primaryColor: '#409eff',
     primaryHover: '#66b1ff',
-    primaryActive: '#0d84ff',
-
-    // 功能色
+    primaryActive: '#3a8ee6',
+    primaryColorBg: '#ecf5ff',
     errorColor: '#f56c6c',
     warningColor: '#e6a23c',
     successColor: '#67c23a',
     infoColor: '#909399'
   },
-
-  // 字体配置
   fonts: {
     fontSize: 14,
-    fontFamily: '"Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial, sans-serif',
-    headerFontWeight: 'bold',
-    cellFontWeight: 'normal'
+    headerFontSize: 14,
+    fontFamily:
+      '"Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif',
+    headerFontWeight: 700,
+    cellFontWeight: 400,
+    lineHeight: 1.5,
+    headerLineHeight: 1.5
   },
-
-  // 尺寸配置
   sizes: {
     headerHeight: 48,
     cellHeight: 48,
-    cellPadding: 12,
-    borderWidth: 1
+    headerPaddingVertical: 12,
+    headerPaddingHorizontal: 10,
+    cellPaddingVertical: 12,
+    cellPaddingHorizontal: 10,
+    borderWidth: 1,
+    borderRadius: 4
   },
-
-  // 固定列样式
   frozenColumn: {
     bgColor: '#ffffff',
     borderColor: '#ebeef5',
     shadowColor: 'rgba(0, 0, 0, 0.12)',
     shadowSize: 6
   },
-
-  // 斑马纹
   stripeColor: '#fafafa'
 }
 
-// 亮色主题（默认）
 export const elementPlusLight = {
   ...elementPlusVTableTheme
 }
 
-// 暗色主题
 export const elementPlusDark = {
   colors: {
     ...elementPlusVTableTheme.colors,
-    bgColor: '#1d1e1f',
-    headerBgColor: '#25262a',
-    headerTextColor: '#e5eaf3',
+    bgColor: '#141414',
+    headerBgColor: '#1d1d1d',
+    footerBgColor: '#1d1d1d',
+    headerTextColor: '#cfd3dc',
     textColor: '#cfd3dc',
+    headerSortActiveTextColor: '#409eff',
+    headerSortHoverTextColor: '#409eff',
     borderColor: '#4c4d4f',
-    hoverColor: '#2b2b2e',
-    selectColor: '#1a2b45',
-    primaryColor: '#409eff',
-    primaryHover: '#66b1ff',
-    primaryActive: '#0d84ff'
+    headerBorderColor: '#4c4d4f',
+    cellBorderColor: '#4c4d4f',
+    headerCellBorderColor: '#4c4d4f',
+    hoverColor: '#262727',
+    hoverBorderColor: '#4c4d4f',
+    selectColor: '#1a3a4d',
+    selectBorderColor: '#409eff',
+    expandedRowBg: '#1d1d1d',
+    primaryColorBg: '#1a3a4d'
   },
-
   frozenColumn: {
-    bgColor: '#1d1e1f',
+    bgColor: '#141414',
     borderColor: '#4c4d4f',
     shadowColor: 'rgba(255, 255, 255, 0.12)',
     shadowSize: 6
   },
-
-  stripeColor: '#25262a'
+  stripeColor: '#1d1d1d'
 }

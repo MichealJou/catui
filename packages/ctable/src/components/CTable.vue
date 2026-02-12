@@ -1,21 +1,15 @@
 <template>
-  <div
-    ref="containerRef"
-    class="ctable-container"
-    :style="containerStyle"
-  >
+  <div ref="containerRef" class="ctable-container" :style="containerStyle">
     <!-- 加载遮罩 -->
     <div v-if="props.loading" class="ctable-loading">
       <div class="ctable-loading-spinner"></div>
-      <div class="ctable-loading-tip">{{ props.loadingTip || '加载中...' }}</div>
+      <div class="ctable-loading-tip">
+        {{ props.loadingTip || '加载中...' }}
+      </div>
     </div>
 
     <!-- VTable 容器 -->
-    <div
-      ref="vtableRef"
-      class="ctable-vtable"
-      :style="vtableStyle"
-    ></div>
+    <div ref="vtableRef" class="ctable-vtable" :style="vtableStyle"></div>
 
     <!-- 分页器容器 -->
     <div
@@ -70,9 +64,13 @@ import {
 import type {
   CTableProps,
   SortOrder,
-  FilterCondition
+  FilterCondition,
+  ColumnResizeInfo
 } from '../types'
-import { createVTableAdapter, type VTableAdapter } from '../adapters/VTableAdapter'
+import {
+  createVTableAdapter,
+  type VTableAdapter
+} from '../adapters/VTableAdapter'
 import { getThemePreset } from '../core/ThemeManager'
 import CPagination from './CPagination.vue'
 
@@ -97,11 +95,13 @@ const emit = defineEmits<{
   'cell-click': [event: any]
   'row-click': [event: any]
   'selection-change': [selectedRows: any[], selectedKeys: any[]]
-  'scroll': [event: any]
+  scroll: [event: any]
   'sort-change': [field: string, order: SortOrder]
   'filter-change': [filters: FilterCondition[]]
-  'expand': [expanded: boolean, record: any]
-  'change': [pagination: any, filters: any, sorter: any]
+  expand: [expanded: boolean, record: any]
+  change: [pagination: any, filters: any, sorter: any]
+  'column-resize': [info: ColumnResizeInfo]
+  'column-resize-end': [info: ColumnResizeInfo]
 }>()
 
 // 组件引用
@@ -113,15 +113,16 @@ let vtableAdapter: VTableAdapter | null = null
 
 // 计算属性
 const containerStyle = computed<CSSProperties>(() => {
-  const theme = typeof props.theme === 'string'
-    ? getThemePreset(props.theme)
-    : props.theme
+  const theme =
+    typeof props.theme === 'string' ? getThemePreset(props.theme) : props.theme
 
   return {
     width: `${props.width}px`,
     height: `${props.height}px`,
     position: 'relative',
-    border: props.bordered ? `1px solid ${theme?.colors?.border || '#f0f0f0'}` : 'none',
+    border: props.bordered
+      ? `1px solid ${theme?.colors?.border || '#f0f0f0'}`
+      : 'none',
     borderRadius: '4px',
     overflow: 'hidden',
     backgroundColor: theme?.colors?.background || '#ffffff'
@@ -185,23 +186,38 @@ const initVTable = () => {
     height: props.height - paginationHeight,
     theme: props.theme,
     rowKey: props.rowKey,
-    rowSelection: props.rowSelection,
+    rowSelection: {
+      ...props.rowSelection,
+      onChange: (selectedRows: any[], selectedKeys: any[]) => {
+        emit('selection-change', selectedRows, selectedKeys)
+        if (props.rowSelection?.onChange) {
+          props.rowSelection.onChange(selectedRows, selectedKeys)
+        }
+      }
+    },
+    resizable: props.resizable,
     onRowClick: (row, index, event) => {
       emit('row-click', { row, index, event })
     },
     onCellClick: (cell, row, column, event) => {
       emit('cell-click', { cell, row, column, event })
     },
-    onSortChange: (sorter) => {
+    onSortChange: sorter => {
       emit('sort-change', sorter.field, sorter.order)
       emit('change', effectivePagination.value, null, sorter)
     },
-    onFilterChange: (filters) => {
+    onFilterChange: filters => {
       emit('filter-change', filters)
       emit('change', effectivePagination.value, filters, null)
     },
-    onScroll: (event) => {
+    onScroll: event => {
       emit('scroll', event)
+    },
+    onColumnResize: info => {
+      emit('column-resize', info)
+    },
+    onColumnResizeEnd: info => {
+      emit('column-resize-end', info)
     }
   })
 }
@@ -210,7 +226,10 @@ const initVTable = () => {
  * 分页改变
  */
 const handlePageChange = (page: number) => {
-  if (effectivePagination.value && typeof effectivePagination.value === 'object') {
+  if (
+    effectivePagination.value &&
+    typeof effectivePagination.value === 'object'
+  ) {
     effectivePagination.value.current = page
   }
   emit('change', { ...effectivePagination.value, current: page }, null, null)
@@ -220,34 +239,57 @@ const handlePageChange = (page: number) => {
  * 每页数量改变
  */
 const handlePageSizeChange = (current: number, size: number) => {
-  if (effectivePagination.value && typeof effectivePagination.value === 'object') {
+  if (
+    effectivePagination.value &&
+    typeof effectivePagination.value === 'object'
+  ) {
     effectivePagination.value.current = current
     effectivePagination.value.pageSize = size
   }
-  emit('change', { ...effectivePagination.value, current, pageSize: size }, null, null)
+  emit(
+    'change',
+    { ...effectivePagination.value, current, pageSize: size },
+    null,
+    null
+  )
 }
 
 // 监听数据变化
-watch(() => currentData.value, (newData) => {
-  vtableAdapter?.updateData(newData)
-}, { deep: true })
+watch(
+  () => currentData.value,
+  newData => {
+    vtableAdapter?.updateData(newData)
+  },
+  { deep: true }
+)
 
 // 监听列配置变化
-watch(() => props.columns, (newColumns) => {
-  vtableAdapter?.updateColumns(newColumns || [])
-}, { deep: true })
+watch(
+  () => props.columns,
+  newColumns => {
+    vtableAdapter?.updateColumns(newColumns || [])
+  },
+  { deep: true }
+)
 
 // 监听主题变化
-watch(() => props.theme, (newTheme) => {
-  vtableAdapter?.updateTheme(newTheme)
-})
+watch(
+  () => props.theme,
+  newTheme => {
+    vtableAdapter?.updateTheme(newTheme)
+  }
+)
 
 // 监听行选择变化
-watch(() => props.rowSelection?.selectedRowKeys, (newKeys) => {
-  if (newKeys) {
-    vtableAdapter?.setSelectedRows(newKeys)
-  }
-}, { deep: true })
+watch(
+  () => props.rowSelection?.selectedRowKeys,
+  newKeys => {
+    if (newKeys) {
+      vtableAdapter?.setSelectedRows(newKeys)
+    }
+  },
+  { deep: true }
+)
 
 // 生命周期
 onMounted(() => {
@@ -295,13 +337,36 @@ defineExpose({
    */
   refresh: () => {
     vtableAdapter?.updateData(currentData.value)
+  },
+
+  /**
+   * 获取列宽
+   */
+  getColumnWidth: (columnKey: string) => {
+    return vtableAdapter?.getColumnWidth(columnKey) ?? 120
+  },
+
+  /**
+   * 获取所有列宽
+   */
+  getColumnWidths: () => {
+    return vtableAdapter?.getColumnWidths() ?? new Map()
+  },
+
+  /**
+   * 设置列宽
+   */
+  setColumnWidth: (columnKey: string, width: number) => {
+    vtableAdapter?.setColumnWidth(columnKey, width)
   }
 })
 </script>
 
 <style scoped>
 .ctable-container {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   color: rgba(0, 0, 0, 0.65);
@@ -311,6 +376,11 @@ defineExpose({
 .ctable-vtable {
   width: 100%;
   overflow: hidden;
+}
+
+/* 隐藏 VTable 表头的菜单图标（保险措施） */
+.ctable-vtable :deep(.vtable-header-cell-menu-icon) {
+  display: none !important;
 }
 
 .ctable-loading {

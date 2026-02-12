@@ -1,28 +1,40 @@
 /**
- * Ant Design 主题配置 - VTable 版本
- * 完美匹配 Ant Design Vue Table 视觉风格
+ * Ant Design Vue 4.x 主题配置 - VTable 版本
+ * 完全匹配 Ant Design Vue Table 视觉规范
+ * https://antdv.com/components/table-cn
  */
 
 export const antDesignVTableTheme = {
-  // 基础颜色
   colors: {
     // 背景色
     bgColor: '#ffffff',
     headerBgColor: '#fafafa',
+    footerBgColor: '#fafafa',
+
+    // 文字色
     headerTextColor: 'rgba(0, 0, 0, 0.88)',
-    textColor: 'rgba(0, 0, 0, 0.65)',
+    textColor: 'rgba(0, 0, 0, 0.88)',
+    headerSortActiveTextColor: '#1677ff',
+    headerSortHoverTextColor: '#1677ff',
 
     // 边框色
     borderColor: '#f0f0f0',
+    headerBorderColor: '#f0f0f0',
+    cellBorderColor: '#f0f0f0',
+    headerCellBorderColor: '#f0f0f0',
 
     // 交互状态
-    hoverColor: 'rgba(24, 144, 255, 0.06)',
-    selectColor: '#e6f7ff',
+    hoverColor: 'rgba(0, 0, 0, 0.04)',
+    hoverBorderColor: '#f0f0f0',
+    selectColor: '#e6f4ff',
+    selectBorderColor: '#bae0ff',
+    expandedRowBg: '#fafafa',
 
     // 品牌色
     primaryColor: '#1677ff',
     primaryHover: '#4096ff',
     primaryActive: '#0958d9',
+    primaryColorBg: '#e6f4ff',
 
     // 功能色
     errorColor: '#ff4d4f',
@@ -31,59 +43,68 @@ export const antDesignVTableTheme = {
     infoColor: '#1677ff'
   },
 
-  // 字体配置
   fonts: {
     fontSize: 14,
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
-    headerFontWeight: 500,
-    cellFontWeight: 400
+    headerFontSize: 14,
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
+    headerFontWeight: 600,
+    cellFontWeight: 400,
+    lineHeight: 22 / 14,
+    headerLineHeight: 22 / 14
   },
 
-  // 尺寸配置
   sizes: {
     headerHeight: 55,
-    cellHeight: 54,
-    cellPadding: 16,
-    borderWidth: 1
+    cellHeight: 55,
+    headerPaddingVertical: 16,
+    headerPaddingHorizontal: 8,
+    cellPaddingVertical: 16,
+    cellPaddingHorizontal: 8,
+    borderWidth: 1,
+    borderRadius: 8
   },
 
-  // 固定列样式
   frozenColumn: {
     bgColor: '#ffffff',
-    borderColor: '#e8e8e8',
-    shadowColor: 'rgba(0, 0, 0, 0.15)',
+    borderColor: '#f0f0f0',
+    shadowColor: 'rgba(0, 0, 0, 0.06)',
     shadowSize: 4
   },
 
-  // 斑马纹
   stripeColor: '#fafafa'
 }
 
-// 亮色主题（默认）
 export const antDesignLight = {
   ...antDesignVTableTheme
 }
 
-// 暗色主题
 export const antDesignDark = {
   colors: {
     ...antDesignVTableTheme.colors,
     bgColor: '#141414',
     headerBgColor: '#1f1f1f',
+    footerBgColor: '#1f1f1f',
     headerTextColor: 'rgba(255, 255, 255, 0.85)',
-    textColor: 'rgba(255, 255, 255, 0.65)',
-    borderColor: '#303030',
-    hoverColor: 'rgba(255, 255, 255, 0.08)',
-    selectColor: '#112545',
-    primaryColor: '#1677ff',
-    primaryHover: '#4096ff',
-    primaryActive: '#0958d9'
+    textColor: 'rgba(255, 255, 255, 0.85)',
+    headerSortActiveTextColor: '#1677ff',
+    headerSortHoverTextColor: '#1677ff',
+    borderColor: '#424242',
+    headerBorderColor: '#424242',
+    cellBorderColor: '#424242',
+    headerCellBorderColor: '#424242',
+    hoverColor: 'rgba(255, 255, 255, 0.04)',
+    hoverBorderColor: '#424242',
+    selectColor: 'rgba(22, 119, 255, 0.2)',
+    selectBorderColor: '#1677ff',
+    expandedRowBg: '#1f1f1f',
+    primaryColorBg: 'rgba(22, 119, 255, 0.2)'
   },
 
   frozenColumn: {
     bgColor: '#141414',
-    borderColor: '#303030',
-    shadowColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: '#424242',
+    shadowColor: 'rgba(255, 255, 255, 0.06)',
     shadowSize: 4
   },
 
