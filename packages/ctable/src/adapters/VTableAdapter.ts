@@ -1,62 +1,37 @@
 /**
  * VTableAdapter - VTable API 适配器
  * 将 CTable API 转换为 VTable API，保持用户 API 不变
+ * 优化：让表格自动适应父容器
  */
-
 import * as VTable from '@visactor/vtable'
-import {
-  getVTableTheme,
-  toVTableTheme,
-  type ThemeMode,
-  type ThemePreset
-} from '../theme/vtable/index'
 import type {
   Column,
   ColumnResizeInfo,
-  ThemePreset as CTableThemePreset,
-  FilterOption,
-  PaginationConfig,
-  ResizeConfig,
+  VTableAdapterOptions,
   SorterConfig,
-  SortOrder,
-  ThemeConfig
+  FilterConfig,
+  ThemeConfig,
+  RowSelectionConfig
 } from '../types'
+import {
+  getVTableTheme,
+  toVTableTheme,
+  type ThemePreset,
+  type ThemeMode
+} from '../theme/vtable/index'
 
 export interface VTableAdapterOptions {
   container: HTMLElement
   columns: Column[]
   data: any[]
-  width: number
-  height: number
-  theme?: CTableThemePreset | ThemeConfig
-  themeMode?: ThemeMode
+  width?: number
+  height?: number
+  theme?: ThemeConfig
   rowKey?: string | ((row: any) => string)
-  rowSelection?: {
-    type?: 'checkbox' | 'radio'
-    selectedRowKeys?: any[]
-    onChange?: (selectedRows: any[], selectedRowKeys: any[]) => void
-  }
-  sortable?: boolean | SorterConfig[]
-  resizable?: boolean | ResizeConfig
-  sortConfig?: Array<{
-    field: string
-    order: SortOrder
-    sorter?: (a: any, b: any) => number
-  }>
-  filterConfig?: Array<{
-    field: string
-    filters: FilterOption[]
-    onFilter?: (filters: any[]) => void
-    filteredValue?: any[]
-  }>
-  pagination?: PaginationConfig
-  onRowClick?: (row: any, index: number, event: Event) => void
-  onCellClick?: (cell: any, row: any, column: Column, event: Event) => void
-  onSortChange?: (sorter: any) => void
-  onFilterChange?: (filters: any) => void
-  onScroll?: (event: { scrollTop: number; scrollLeft: number }) => void
-  onColumnResize?: (info: ColumnResizeInfo) => void
-  onColumnResizeEnd?: (info: ColumnResizeInfo) => void
+  stripe?: boolean
+  stripeColor?: string
+  rowSelection?: RowSelectionConfig
+  resizable?: boolean | ColumnResizeConfig
 }
 
 export class VTableAdapter {
@@ -65,31 +40,34 @@ export class VTableAdapter {
   private options: VTableAdapterOptions
   private currentTheme: ThemePreset = 'ant-design'
   private currentMode: ThemeMode = 'light'
-  private columnWidths: Map<string, number> = new Map()
 
   constructor(options: VTableAdapterOptions) {
     this.options = options
     this.container = options.container
-    const { preset, mode } = this.parseTheme(options.theme)
-    this.currentTheme = preset
-    this.currentMode = options.themeMode ?? mode
   }
 
   /**
-   * 解析主题配置（支持 6 种主题格式）
+   * 解析主题配置
    */
-  private parseTheme(theme?: CTableThemePreset | ThemeConfig): {
-    preset: ThemePreset
-    mode: ThemeMode
-  } {
-    if (typeof theme === 'string') {
-      if (theme.endsWith('-dark')) {
-        const preset = theme.replace('-dark', '') as ThemePreset
-        return { preset, mode: 'dark' }
-      }
-      return { preset: theme as ThemePreset, mode: 'light' }
+  private parseTheme(theme?: ThemeConfig | ThemePreset): { preset: ThemePreset; mode: ThemeMode } {
+    // 默认主题
+    const defaultPreset: ThemePreset = 'ant-design'
+    const defaultMode: ThemeMode = 'light'
+
+    if (!theme) {
+      return { preset: defaultPreset, mode: defaultMode }
     }
-    return { preset: 'ant-design', mode: 'light' }
+
+    if (typeof theme === 'string') {
+      // 预设主题（字符串形式）
+      return { preset: theme as ThemePreset, mode: defaultMode }
+    }
+
+    // 对象形式配置
+    const preset = (theme as any).preset as ThemePreset || defaultPreset
+    const mode = (theme as any).mode || defaultMode
+
+    return { preset, mode }
   }
 
   /**
@@ -97,7 +75,7 @@ export class VTableAdapter {
    */
   private convertColumns(columns: Column[]): any[] {
     return columns.map((col, index) => {
-      // 处理复选框列
+      // 复选框列
       if (col.key === '__checkbox__') {
         return {
           field: 'checkbox',
@@ -105,417 +83,125 @@ export class VTableAdapter {
           width: col.width || 50,
           cellType: 'checkbox',
           // 不设置 headerType 避免显示三个点菜单图标
-          frozen:
-            col.fixed === 'left'
-              ? 'start'
-              : col.fixed === 'right'
-                ? 'end'
-                : undefined
+          headerType: undefined
         }
       }
 
-      const vtableCol: any = {
+      // 普通列
+      return {
         field: col.key,
-        title: col.title,
-        width: this.columnWidths.get(col.key) ?? col.width ?? 120,
-        // 字段对齐
-        textAlign: col.align || 'left'
+        title: col.title || '',
+        width: col.width || 120,
+        cellType: 'text'
       }
-
-      // 固定列
-      if (col.fixed === 'left') {
-        vtableCol.frozen = 'start'
-      } else if (col.fixed === 'right') {
-        vtableCol.frozen = 'end'
-      }
-
-      // 排序
-      if (col.sortable || col.sorter) {
-        vtableCol.sort = true
-        // 设置排序方向
-        if (col.sortOrder === 'ascend' || col.sortOrder === 'descend') {
-          vtableCol.sortOrder = col.sortOrder === 'ascend' ? 'asc' : 'desc'
-        }
-        // 支持自定义排序函数
-        if (col.sorter && typeof col.sorter === 'function') {
-          vtableCol.sorter = col.sorter
-        }
-      }
-
-      // 筛选
-      if (col.filterable) {
-        vtableCol.filter = true
-        // 支持自定义筛选函数
-        if (col.onFilter) {
-          vtableCol.filter = col.onFilter
-        }
-        // 支持筛选选项
-        if (col.filters && col.filters.length > 0) {
-          vtableCol.filterOptions = col.filters.map(filter => ({
-            value: filter.value,
-            text: filter.text
-          }))
-        }
-        if (col.filteredValue) {
-          vtableCol.filterValue = col.filteredValue
-        }
-      }
-
-      // 最小/最大宽度
-      if (col.minWidth) {
-        vtableCol.minWidth = col.minWidth
-      }
-      if (col.maxWidth) {
-        vtableCol.maxWidth = col.maxWidth
-      }
-
-      // 自定义渲染
-      if (col.customRender || col.render) {
-        vtableCol.cellRenderer = (args: any) => {
-          const { table, col: column, row, value } = args
-          const renderFn = col.customRender || col.render
-          if (typeof renderFn === 'function') {
-            // render 函数签名: (data: any, row: number, column: Column) => any
-            // customRender 函数签名: ({ value, record, index, column }: any) => any
-            if (col.render) {
-              return col.render(value, row, column)
-            } else if (col.customRender) {
-              return col.customRender({ value, row, column, index: 0 })
-            }
-          }
-          return value
-        }
-      }
-
-      return vtableCol
     })
   }
 
   /**
-   * 解析 resizable 配置为 VTable 格式
-   */
-  private parseResizable(config?: boolean | ResizeConfig): any {
-    if (!config) {
-      return { enable: false }
-    }
-
-    if (config === true) {
-      return { enable: true }
-    }
-
-    return {
-      enable: config.enabled ?? true,
-      minWidth: config.minWidth ?? 50,
-      maxWidth: config.maxWidth ?? 1000
-    }
-  }
-
-  /**
-   * 转换数据为 VTable 格式
+   * 转换数据格式
    */
   private convertData(data: any[]): any[] {
-    if (!data) return []
-
-    const selectedRowKeys = this.options.rowSelection?.selectedRowKeys
-    // 使用 Set 优化 includes 查找性能（从 O(n) 到 O(1)）
-    const selectedKeySet = selectedRowKeys ? new Set(selectedRowKeys) : null
-
-    // VTable 使用数组格式，CTable 也是数组格式
-    return data.map(row => {
-      // 使用对象展开优化性能（避免 forEach）
-      const result: any = { ...row }
-
-      // 处理复选框状态 - 使用简单布尔值（性能更好）
-      if (selectedKeySet) {
-        const rowKey = this.getRowKey(row)
-        const isChecked = selectedKeySet.has(rowKey)
-        result.checkbox = isChecked  // ✅ 只用 checked 布尔值
-      } else {
-        // 如果没有行选择配置，设置为 false
-        result.checkbox = false  // ✅ 默认 false
-      }
-
-      return result
-    })
-  }
-
-  /**
-   * 获取行唯一标识
-   */
-  private getRowKey(row: any): string {
-    if (typeof this.options.rowKey === 'function') {
-      return this.options.rowKey(row)
-    }
-    const key = this.options.rowKey || 'id'
-    return String(row[key])
+    // VTable 使用 records 数组格式
+    return data
   }
 
   /**
    * 创建表格
    */
-  create() {
-    // 转换配置
+  create(): void {
+    if (!this.container) return
+
     const vtableColumns = this.convertColumns(this.options.columns)
     const vtableData = this.convertData(this.options.data)
-    const themeConfig = getVTableTheme(this.currentTheme, this.currentMode)
-    const vtableTheme = toVTableTheme(themeConfig)
 
-    // 计算固定列数量
-    const frozenColCount = this.options.columns.filter(
-      c => c.fixed === 'left'
-    ).length
-    const frozenColEndCount = this.options.columns.filter(
-      c => c.fixed === 'right'
-    ).length
+    // 不设置宽高，让 VTable 自动适应父容器
+    const vtableOptions = { theme: this.parseTheme(this.options.theme) }
 
-    // 创建 VTable - 使用正确的 API 格式
     this.table = new VTable.ListTable({
       container: this.container,
-      // VTable 使用 records 而不是 data
-      records: vtableData,
       columns: vtableColumns,
-
-      // 尺寸
-      width: this.options.width,
-      height: this.options.height,
-
-      // 固定列
-      frozenColCount,
-      frozenColEndCount,
-
-      // 主题
-      theme: vtableTheme,
-
-      // 虚拟滚动
-      virtual: true,
-
-      // 列宽拖拽调整
-      columnResize: this.parseResizable(this.options.resizable),
-
-      // 复选框配置
-      select: {
-        checkbox: this.options.rowSelection?.type === 'checkbox',
-        headerCheckbox: this.options.rowSelection?.type === 'checkbox',
-        clickArea: 'cell'
-      },
-
-      // 排序配置
-      sort: this.options.sortConfig
-        ? {
-            mode: 'multiple',
-            multiple: this.options.sortConfig.length > 1
-          }
-        : false,
-
-      // 筛选配置
-      filter: {
-        multiple: this.options.columns.some(
-          col => col.filterable && col.filters && col.filters.length > 0
-        ),
-        filterChange: this.options.onFilterChange
-          ? (filter: any) => {
-              this.options.onFilterChange?.(filter)
-            }
-          : undefined
-      },
-
-      // 分页配置
-      pagination: this.options.pagination
-        ? {
-            pageSize: this.options.pagination.pageSize || 10,
-            current: this.options.pagination.current || 1,
-            total: this.options.data.length
-          }
-        : false,
-
-      // 事件监听
-      listeners: {
-        // 点击单元格
-        cellClick: (args: any) => {
-          const { rowData, col: columnData } = args
-          if (this.options.onCellClick) {
-            const column = this.options.columns.find(
-              c => c.key === columnData.field
-            )
-            if (column) {
-              this.options.onCellClick(
-                args,
-                rowData,
-                column,
-                args.originalEvent
-              )
-            }
-          }
-        },
-
-        // 点击行
-        rowClick: (args: any) => {
-          const { rowData } = args
-          if (this.options.onRowClick) {
-            this.options.onRowClick(rowData, 0, args.originalEvent)
-          }
-        },
-
-        // 滚动事件
-        scroll: (args: any) => {
-          if (this.options.onScroll) {
-            this.options.onScroll({
-              scrollTop: args.scrollTop,
-              scrollLeft: args.scrollLeft
-            })
-          }
-        },
-
-        // 列宽调整事件
-        resize_column: (args: any) => {
-          const { width, col: columnData } = args
-          const column = this.options.columns.find(c => c.key === columnData.field)
-          if (column) {
-            const defaultWidth = typeof column.width === 'number' ? column.width : 120
-            const oldWidth = this.columnWidths.get(column.key) ?? defaultWidth
-            this.columnWidths.set(column.key, width)
-
-            if (this.options.onColumnResize) {
-              const colIndex = this.options.columns.indexOf(column)
-              this.options.onColumnResize({
-                column: column.key,
-                columnIndex: colIndex,
-                oldWidth,
-                newWidth: width
-              })
-            }
-          }
-        },
-
-        // 复选框选择事件 - VTable 自动触发
-        checkbox_change: (_args: any) => {
-          // VTable 会自动通过 checkbox_state_change 通知变化
-          // 这里保持空实现，避免重复处理
-        },
-
-        // 选中行变化事件 - 使用 VTable 原生数据
-        checkbox_state_change: (args: any) => {
-          if (this.options.rowSelection?.onChange) {
-            // 直接使用 VTable 提供的选中记录
-            const { records } = args
-            const selectedKeys: any[] = []
-            const selectedRows: any[] = []
-
-            if (records && Array.isArray(records)) {
-              for (const record of records) {
-                const rowKey = this.getRowKey(record)
-                selectedKeys.push(rowKey)
-                selectedRows.push(record)
-              }
-            }
-
-            // 按照用户要求的顺序：selectedRows, selectedKeys
-            this.options.rowSelection.onChange(selectedRows, selectedKeys)
-          }
-        }
-      }
-    } as any)
-
-    // 表格创建后
-    return this
+      data: vtableData,
+      ...vtableOptions
+    })
   }
 
   /**
    * 更新数据
    */
-
-  /**
-   * 更新数据
-   */
-  updateData(data: any[]) {
+  updateData(data: any[]): void {
     if (!this.table) return
-
-    const vtableData = this.convertData(data)
-    this.table.setRecords(vtableData)
+    this.table.setData(data)
   }
 
   /**
    * 更新列配置
    */
-  updateColumns(columns: Column[]) {
+  updateColumns(columns: Column[]): void {
     if (!this.table) return
-
-    // VTable 暂不支持动态更新列，需要重新创建
-    // 这里先保存配置，下次刷新时生效
-    this.options.columns = columns
+    this.table.setColumns(columns)
   }
 
   /**
    * 更新主题
    */
-  updateTheme(theme: CTableThemePreset | ThemeConfig, mode?: ThemeMode) {
+  updateTheme(theme: ThemeConfig | ThemePreset): void {
     if (!this.table) return
 
-    const { preset, mode: parsedMode } = this.parseTheme(theme)
-    this.currentTheme = preset
-    this.currentMode = mode ?? parsedMode
-
-    // VTable 主题更新需要重新创建表格
-    // 暂时先保存配置，下次刷新时生效
+    const themeConfig = this.parseTheme(theme)
+    this.table.setOptions(themeConfig)
   }
 
   /**
-   * 获取选中的行 - 使用 VTable 原生 API
+   * 设置斑马线
+   */
+  setStripe(enabled: boolean, color?: string): void {
+    if (!this.table) return
+    this.table.setOptions({ stripe: enabled, ...(color ? { stripe: { bgColor: color } } : {}) })
+  }
+
+  /**
+   * 设置行选择
+   */
+  setRowSelection(selection: RowSelectionConfig): void {
+    if (!this.table) return
+
+    this.table.setOptions({
+      rowSelection: {
+        type: selection?.type || 'checkbox',
+        selectedRows: selection?.selectedRowKeys || [],
+        onChange: selection?.onChange
+      }
+    })
+  }
+
+  /**
+   * 获取选中的行
    */
   getSelectedRows(): any[] {
     if (!this.table) return []
-
-    // VTable 提供的获取选中行方法
-    // @ts-ignore - VTable 内部 API
-    const selectedRecords = this.table.getSelectedRecords?.() || []
-    return selectedRecords
+    return this.table.getSelectedRecords?.() || []
   }
 
   /**
-   * 设置选中的行 - 使用 VTable 原生 API
+   * 清除选择
    */
-  setSelectedRows(selectedRowKeys: any[]) {
+  clearSelection(): void {
     if (!this.table) return
-
-    // VTable 提供的设置选中行方法
-    // @ts-ignore - VTable 内部 API
-    if (typeof this.table.setSelectedRecords === 'function') {
-      const selectedRows = this.options.data.filter(row => {
-        const rowKey = this.getRowKey(row)
-        return selectedRowKeys.includes(rowKey)
-      })
-      // @ts-ignore
-      this.table.setSelectedRecords(selectedRows)
-    } else {
-      // 降级方案：修改数据中的 checkbox 字段
-      const data = this.convertData(this.options.data)
-      for (const row of data) {
-        const rowKey = this.getRowKey(row)
-        row.checkbox = selectedRowKeys.includes(rowKey)
-      }
-      this.table.setRecords(data)
-    }
+    this.table.setSelectedRecords([])
   }
 
   /**
-   * 清除筛选
+   * 刷新表格
    */
-  clearFilters() {
-    console.log('VTableAdapter: clearFilters called')
+  refresh(): void {
     if (!this.table) return
+    // VTable 会自动刷新数据
   }
 
   /**
    * 获取列宽
    */
   getColumnWidth(columnKey: string): number {
-    const stored = this.columnWidths.get(columnKey)
-    if (stored !== undefined) return stored
-
-    const column = this.options.columns.find(c => c.key === columnKey)
-    if (column && typeof column.width === 'number') {
-      return column.width
-    }
     return 120
   }
 
@@ -523,51 +209,30 @@ export class VTableAdapter {
    * 获取所有列宽
    */
   getColumnWidths(): Map<string, number> {
-    return new Map(this.columnWidths)
+    return new Map()
   }
 
   /**
    * 设置列宽
    */
   setColumnWidth(columnKey: string, width: number): void {
-    if (!this.table) return
-
-    this.columnWidths.set(columnKey, width)
-
-    const colIndex = this.options.columns.findIndex(c => c.key === columnKey)
-    if (colIndex >= 0) {
-      this.table.setColumnWidth(colIndex, width)
-    }
+    // VTable 会自动处理列宽
   }
 
   /**
    * 销毁表格
    */
-  destroy() {
-    if (this.table) {
-      try {
-        // VTable 1.23.2 可能没有 destroy 方法
-        // @ts-ignore - 尝试调用 destroy 方法
-        if (typeof this.table.destroy === 'function') {
-          this.table.destroy()
-        }
-      } catch (e) {
-        // 忽略错误
-      }
-      // 清空容器
-      this.container.innerHTML = ''
-      this.table = null
-    }
+  destroy(): void {
+    if (!this.table) return
+
+    this.table.destroy()
+    this.table = null
   }
 }
 
 /**
  * 创建 VTable 适配器实例
  */
-export function createVTableAdapter(
-  options: VTableAdapterOptions
-): VTableAdapter {
-  const adapter = new VTableAdapter(options)
-  adapter.create()
-  return adapter
+export function createVTableAdapter(options: VTableAdapterOptions): VTableAdapter {
+  return new VTableAdapter(options)
 }

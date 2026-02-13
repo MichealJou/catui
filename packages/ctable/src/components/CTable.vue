@@ -1,21 +1,18 @@
 <template>
-  <div ref="containerRef" class="ctable-container" :style="containerStyle">
-    <!-- 加载遮罩 -->
+  <div class="ctable-wrapper" :class="{ 'is-loading': props.loading }">
+    <!-- Loading 遮罩 -->
     <div v-if="props.loading" class="ctable-loading">
       <div class="ctable-loading-spinner"></div>
-      <div class="ctable-loading-tip">
-        {{ props.loadingTip || '加载中...' }}
-      </div>
+      <div class="ctable-loading-tip">加载中...</div>
     </div>
 
-    <!-- VTable 容器 -->
-    <div ref="vtableRef" class="ctable-vtable" :style="vtableStyle"></div>
+    <!-- 表格容器 -->
+    <div ref="vtableRef" class="ctable-table"></div>
 
     <!-- 分页器容器 -->
     <div
       v-if="effectivePagination"
-      ref="paginationRef"
-      class="ctable-pagination-wrapper"
+      class="ctable-pagination"
     >
       <CPagination
         :current="currentPage"
@@ -58,7 +55,6 @@ import {
   onBeforeUnmount,
   computed,
   watch,
-  useSlots,
   type CSSProperties
 } from 'vue'
 import type {
@@ -79,15 +75,12 @@ defineOptions({
 })
 
 const props = withDefaults(defineProps<CTableProps>(), {
-  width: 1200,
-  height: 600,
   rowKey: 'id',
   theme: 'ant-design',
   virtualScroll: true,
   selectable: false,
-  selectableType: 'multiple',
-  bordered: true,
-  stripe: false,
+  bordered: false,
+  stripe: true,
   loading: false
 })
 
@@ -110,32 +103,6 @@ const vtableRef = ref<HTMLElement>()
 
 // VTable 适配器
 let vtableAdapter: VTableAdapter | null = null
-
-// 计算属性
-const containerStyle = computed<CSSProperties>(() => {
-  const theme =
-    typeof props.theme === 'string' ? getThemePreset(props.theme) : props.theme
-
-  return {
-    width: `${props.width}px`,
-    height: `${props.height}px`,
-    position: 'relative',
-    border: props.bordered
-      ? `1px solid ${theme?.colors?.border || '#f0f0f0'}`
-      : 'none',
-    borderRadius: '4px',
-    overflow: 'hidden',
-    backgroundColor: theme?.colors?.background || '#ffffff'
-  }
-})
-
-const vtableStyle = computed<CSSProperties>(() => {
-  const paginationHeight = effectivePagination.value ? 50 : 0
-  return {
-    width: '100%',
-    height: `${props.height - paginationHeight}px`
-  }
-})
 
 // 当前数据
 const currentData = computed(() => {
@@ -161,33 +128,19 @@ const total = computed(() => {
 })
 
 /**
- * 获取行唯一标识
- */
-const getRowKey = (row: any): string => {
-  if (typeof props.rowKey === 'function') {
-    return props.rowKey(row)
-  }
-  return String(row[props.rowKey || 'id'])
-}
-
-/**
  * 初始化 VTable
  */
 const initVTable = () => {
   if (!vtableRef.value) return
 
-  const paginationHeight = effectivePagination.value ? 50 : 0
-
   vtableAdapter = createVTableAdapter({
     container: vtableRef.value,
     columns: props.columns || [],
     data: currentData.value,
-    width: props.width,
-    height: props.height - paginationHeight,
     theme: props.theme,
     rowKey: props.rowKey,
     rowSelection: {
-      ...props.rowSelection,
+      selectedRows: props.rowSelection?.selectedRowKeys || [],
       onChange: (selectedRows: any[], selectedKeys: any[]) => {
         emit('selection-change', selectedRows, selectedKeys)
         if (props.rowSelection?.onChange) {
@@ -257,19 +210,23 @@ const handlePageSizeChange = (current: number, size: number) => {
 // 监听数据变化
 watch(
   () => currentData.value,
-  newData => {
-    vtableAdapter?.updateData(newData)
-  },
-  { deep: true }
+  (newData, oldData) => {
+    // 只在数组引用真正改变时才更新
+    if (newData !== oldData) {
+      vtableAdapter?.updateData(newData)
+    }
+  }
 )
 
 // 监听列配置变化
 watch(
   () => props.columns,
-  newColumns => {
-    vtableAdapter?.updateColumns(newColumns || [])
-  },
-  { deep: true }
+  (newColumns, oldColumns) => {
+    // 比较数组引用和长度
+    if (newColumns !== oldColumns) {
+      vtableAdapter?.updateColumns(newColumns || [])
+    }
+  }
 )
 
 // 监听主题变化
@@ -303,14 +260,6 @@ onBeforeUnmount(() => {
 
 // 暴露的方法
 defineExpose({
-  /**
-   * 滚动到指定位置
-   */
-  scrollTo: (options: { top?: number; left?: number }) => {
-    // VTable 内置滚动支持
-    console.log('scrollTo called with:', options)
-  },
-
   /**
    * 获取选中的行
    */
@@ -363,26 +312,24 @@ defineExpose({
 </script>
 
 <style scoped>
-.ctable-container {
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  color: rgba(0, 0, 0, 0.65);
-  user-select: none;
+.ctable-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
-.ctable-vtable {
-  width: 100%;
+.ctable-table {
+  flex: 1;
   overflow: hidden;
 }
 
-/* 隐藏 VTable 表头的菜单图标（保险措施） */
-.ctable-vtable :deep(.vtable-header-cell-menu-icon) {
-  display: none !important;
+.ctable-pagination {
+  flex-shrink: 0;
 }
 
+/* Loading 状态 */
 .ctable-loading {
   position: absolute;
   top: 0;
@@ -421,12 +368,19 @@ defineExpose({
   font-size: 14px;
 }
 
-.ctable-pagination-wrapper {
-  height: 50px;
+/* 分页样式 */
+.ctable-pagination {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  padding: 16px;
+  padding: 12px 16px;
   border-top: 1px solid #f0f0f0;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+/* 加载状态时表格区域有透明背景 */
+.is-loading .ctable-table {
+  opacity: 0.3;
 }
 </style>

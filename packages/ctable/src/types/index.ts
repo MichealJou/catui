@@ -181,6 +181,7 @@ export interface ThemeColors {
   selected: string
   footer: string
   stripe?: string
+  ripeColor?: string // 斑马线颜色（默认 #fafafa）
   fixedShadow?: string
 }
 
@@ -258,6 +259,10 @@ export interface CTableProps {
   // defaultExpandAllRows 已在上面定义，这里不需要重复
   indentSize?: number
 
+  // === 斑马线属性 ===
+  stripe?: boolean // 是否启用斑马纹（默认 true）
+  stripeColor?: string // 斑马线颜色（覆盖主题颜色）
+
   // === 排序/筛选变化 ===
   onChange?: (pagination: any, filters: any, sorter: any) => void
 
@@ -301,6 +306,10 @@ export interface CTableProps {
     forceCustom?: boolean
     customAdapters?: any
   }
+
+  // === 加载状态属性 ===
+  loading?: boolean
+  loadingTip?: string
 }
 
 // ============================================================================
