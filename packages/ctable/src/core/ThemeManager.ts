@@ -35,7 +35,7 @@ export const DARK_THEME: ThemeConfig = antDesignDarkTheme
 // ============================================================================
 
 export class ThemeManager {
-  private currentTheme: ThemeConfig
+  private currentTheme: ThemeConfig = DEFAULT_THEME
   private currentPreset: ThemePreset | null = null
   private listeners: Set<(theme: ThemeConfig) => void> = new Set()
 

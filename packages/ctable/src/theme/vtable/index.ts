@@ -11,7 +11,13 @@ import { antDesignLight, antDesignDark } from './ant-design'
 import { elementPlusLight, elementPlusDark } from './element-plus'
 import { naiveLight, naiveDark } from './naive'
 
-export type ThemePreset = 'ant-design' | 'element-plus' | 'naive'
+export type ThemePreset =
+  | 'ant-design'
+  | 'ant-design-dark'
+  | 'element-plus'
+  | 'element-plus-dark'
+  | 'naive'
+  | 'naive-dark'
 export type ThemeMode = 'light' | 'dark'
 
 /**
@@ -23,11 +29,23 @@ export function getVTableTheme(preset: ThemePreset, mode: ThemeMode = 'light') {
       light: antDesignLight,
       dark: antDesignDark
     },
+    'ant-design-dark': {
+      light: antDesignLight,
+      dark: antDesignDark
+    },
     'element-plus': {
       light: elementPlusLight,
       dark: elementPlusDark
     },
+    'element-plus-dark': {
+      light: elementPlusLight,
+      dark: elementPlusDark
+    },
     naive: {
+      light: naiveLight,
+      dark: naiveDark
+    },
+    'naive-dark': {
       light: naiveLight,
       dark: naiveDark
     }

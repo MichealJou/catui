@@ -27,8 +27,8 @@
    - Vue 3.3+ (Composition API)
    - TypeScript 5.3
    - Vite 5.0
-   - Less（用于组件库）
    - UnoCSS（原子化 CSS）
+   - 普通 scoped CSS（组件样式）
 
 3. 检查是否有相关 Skill 可用
    - vue: Vue 开发最佳实践
@@ -102,8 +102,8 @@
    <!-- 模板内容 -->
    </template>
 
-   <style lang="less" scoped>
-   // 样式
+   <style scoped>
+   /* 组件样式（使用 scoped CSS） */
    </style>
 
 3. 类型安全

@@ -36,7 +36,7 @@ function checkAntDesignVueAvailable(): boolean {
       const module = require('ant-design-vue')
       AntDesignVuePagination = module.Pagination
       return true
-    } catch (e) {
+    } catch {
       // ES Module 环境
       // @ts-ignore
       if (window && window.antDesignVue) {
@@ -53,7 +53,7 @@ function checkAntDesignVueAvailable(): boolean {
       '[CTable] To use ant-design-vue pagination, install it: npm install ant-design-vue'
     )
     return false
-  } catch (error) {
+  } catch {
     return false
   }
 }
@@ -141,11 +141,11 @@ export const AntDesignVuePaginationAdapter: PaginationAdapter = {
         return () => {
           // 准备 ant-design-vue Pagination 的 props
           const paginationProps: any = {
-            current: config.current,
+            current: config.current ?? 1,
             defaultCurrent: config.defaultCurrent,
             pageSize: config.pageSize,
             defaultPageSize: config.defaultPageSize,
-            total: config.total,
+            total: config.total ?? 0,
             disabled: config.disabled,
             showSizeChanger: config.showSizeChanger,
             showQuickJumper: config.showQuickJumper,
@@ -172,7 +172,7 @@ export const AntDesignVuePaginationAdapter: PaginationAdapter = {
             // 总数显示
             if (slots.total) {
               slotMappings.default = (props: any) => {
-                return slots.total!({ total: config.total, range: props.range })
+                return slots.total!({ total: config.total ?? 0, range: props.range })
               }
             }
 
@@ -188,7 +188,7 @@ export const AntDesignVuePaginationAdapter: PaginationAdapter = {
             if (slots.prev) {
               slotMappings.prevIcon = () =>
                 slots.prev!({
-                  disabled: !config.current || config.current <= 1
+                  disabled: !(config.current ?? 1) || (config.current ?? 1) <= 1
                 })
             }
 
@@ -197,9 +197,9 @@ export const AntDesignVuePaginationAdapter: PaginationAdapter = {
               slotMappings.nextIcon = () =>
                 slots.next!({
                   disabled:
-                    !config.current ||
-                    config.current >=
-                      Math.ceil(config.total / (config.pageSize || 10))
+                    !(config.current ?? 1) ||
+                    (config.current ?? 1) >=
+                      Math.ceil((config.total ?? 0) / (config.pageSize || 10))
                 })
             }
           }

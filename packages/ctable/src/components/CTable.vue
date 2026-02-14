@@ -1,9 +1,9 @@
 <template>
-  <div class="ctable-wrapper" :class="{ 'is-loading': props.loading }">
+  <div class="ctable-wrapper" :class="{ 'is-loading': mergedLoading }">
     <!-- Loading 遮罩 -->
-    <div v-if="props.loading" class="ctable-loading">
-      <div class="ctable-loading-spinner"></div>
-      <div class="ctable-loading-tip">加载中...</div>
+    <div v-if="mergedLoading" class="ctable-loading">
+      <slot v-if="$slots.loading" name="loading" :loading="mergedLoading" :tip="props.loadingTip || '加载中...'"></slot>
+      <component v-else :is="loadingOverlayComponent"></component>
     </div>
 
     <!-- 表格容器 -->
@@ -55,7 +55,9 @@ import {
   onBeforeUnmount,
   computed,
   watch,
-  type CSSProperties
+  nextTick,
+  useSlots,
+  h
 } from 'vue'
 import type {
   CTableProps,
@@ -67,8 +69,9 @@ import {
   createVTableAdapter,
   type VTableAdapter
 } from '../adapters/VTableAdapter'
-import { getThemePreset } from '../core/ThemeManager'
+import { createLoadingComponent } from '../adapters/AdapterFactory'
 import CPagination from './CPagination.vue'
+import CSpinner from './CSpinner.vue'
 
 defineOptions({
   name: 'CTable'
@@ -85,10 +88,10 @@ const props = withDefaults(defineProps<CTableProps>(), {
 })
 
 const emit = defineEmits<{
-  'cell-click': [event: any]
-  'row-click': [event: any]
+  'cell-click': [cell: any, row: any, column: any, event: any]
+  'row-click': [row: any, index: number, event: any]
   'selection-change': [selectedRows: any[], selectedKeys: any[]]
-  scroll: [event: any]
+  scroll: [scrollTop: number, scrollLeft: number]
   'sort-change': [field: string, order: SortOrder]
   'filter-change': [filters: FilterCondition[]]
   expand: [expanded: boolean, record: any]
@@ -96,13 +99,61 @@ const emit = defineEmits<{
   'column-resize': [info: ColumnResizeInfo]
   'column-resize-end': [info: ColumnResizeInfo]
 }>()
+const slots = useSlots()
 
 // 组件引用
-const containerRef = ref<HTMLElement>()
 const vtableRef = ref<HTMLElement>()
 
 // VTable 适配器
 let vtableAdapter: VTableAdapter | null = null
+const internalBusy = ref(false)
+const mergedLoading = computed(() => props.loading || internalBusy.value)
+const loadingOverlayComponent = computed(() =>
+  createLoadingComponent(
+    {
+      spinning: true,
+      tip: props.loadingTip || '加载中...',
+      size: 'default'
+    },
+    {
+      indicator:
+        slots['loading-indicator'] ||
+        (() => h(CSpinner, { size: 30, strokeWidth: 3, color: '#1677ff' }))
+    },
+    props.adapter
+  )
+)
+
+const runWithBusy = async (task: () => void) => {
+  if (props.loading) {
+    task()
+    return
+  }
+  const startedAt = Date.now()
+  const minVisibleMs = 150
+  internalBusy.value = true
+  await nextTick()
+  try {
+    task()
+  } finally {
+    const elapsed = Date.now() - startedAt
+    const waitMs = Math.max(0, minVisibleMs - elapsed)
+    setTimeout(async () => {
+      await nextTick()
+      internalBusy.value = false
+    }, waitMs)
+  }
+}
+
+const shallowEqualKeys = (a?: any[], b?: any[]) => {
+  if (a === b) return true
+  if (!a || !b) return false
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
 
 // 当前数据
 const currentData = computed(() => {
@@ -115,16 +166,27 @@ const effectivePagination = computed(() => {
   return props.pagination
 })
 
-const currentPage = computed(() => {
-  return effectivePagination.value?.current || 1
+const paginationConfig = computed(() => {
+  if (!effectivePagination.value || typeof effectivePagination.value !== 'object') {
+    return null
+  }
+  return effectivePagination.value
 })
 
-const pageSize = computed(() => {
-  return effectivePagination.value?.pageSize || 10
-})
+const currentPage = ref(paginationConfig.value?.current || paginationConfig.value?.defaultCurrent || 1)
+const pageSize = ref(paginationConfig.value?.pageSize || paginationConfig.value?.defaultPageSize || 10)
 
 const total = computed(() => {
-  return currentData.value.length
+  return paginationConfig.value?.total ?? currentData.value.length
+})
+
+const paginatedData = computed(() => {
+  if (!paginationConfig.value) {
+    return currentData.value
+  }
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return currentData.value.slice(start, end)
 })
 
 /**
@@ -136,24 +198,29 @@ const initVTable = () => {
   vtableAdapter = createVTableAdapter({
     container: vtableRef.value,
     columns: props.columns || [],
-    data: currentData.value,
+    data: paginatedData.value,
+    width: vtableRef.value.clientWidth,
+    height: vtableRef.value.clientHeight,
     theme: props.theme,
+    stripe: props.stripe,
+    stripeColor: props.stripeColor,
+    bordered: props.bordered,
     rowKey: props.rowKey,
     rowSelection: {
-      selectedRows: props.rowSelection?.selectedRowKeys || [],
-      onChange: (selectedRows: any[], selectedKeys: any[]) => {
+      selectedRowKeys: props.rowSelection?.selectedRowKeys || [],
+      onChange: (selectedKeys: any[], selectedRows: any[]) => {
         emit('selection-change', selectedRows, selectedKeys)
         if (props.rowSelection?.onChange) {
-          props.rowSelection.onChange(selectedRows, selectedKeys)
+          props.rowSelection.onChange(selectedKeys, selectedRows)
         }
       }
     },
     resizable: props.resizable,
     onRowClick: (row, index, event) => {
-      emit('row-click', { row, index, event })
+      emit('row-click', row, index, event)
     },
     onCellClick: (cell, row, column, event) => {
-      emit('cell-click', { cell, row, column, event })
+      emit('cell-click', cell, row, column, event)
     },
     onSortChange: sorter => {
       emit('sort-change', sorter.field, sorter.order)
@@ -164,7 +231,9 @@ const initVTable = () => {
       emit('change', effectivePagination.value, filters, null)
     },
     onScroll: event => {
-      emit('scroll', event)
+      const scrollTop = Number((event as any)?.scrollTop ?? 0)
+      const scrollLeft = Number((event as any)?.scrollLeft ?? 0)
+      emit('scroll', scrollTop, scrollLeft)
     },
     onColumnResize: info => {
       emit('column-resize', info)
@@ -173,47 +242,81 @@ const initVTable = () => {
       emit('column-resize-end', info)
     }
   })
+
+  // 调用 create() 方法创建表格
+  vtableAdapter.create()
 }
 
 /**
  * 分页改变
  */
-const handlePageChange = (page: number) => {
-  if (
-    effectivePagination.value &&
-    typeof effectivePagination.value === 'object'
-  ) {
-    effectivePagination.value.current = page
+const handlePageChange = (page: number, size?: number) => {
+  currentPage.value = page
+  if (typeof size === 'number') {
+    pageSize.value = size
   }
-  emit('change', { ...effectivePagination.value, current: page }, null, null)
+
+  const mergedPagination = {
+    ...(paginationConfig.value || {}),
+    current: currentPage.value,
+    pageSize: pageSize.value,
+    total: total.value
+  }
+
+  paginationConfig.value?.onChange?.(currentPage.value, pageSize.value)
+  emit('change', mergedPagination, null, null)
 }
 
 /**
  * 每页数量改变
  */
 const handlePageSizeChange = (current: number, size: number) => {
-  if (
-    effectivePagination.value &&
-    typeof effectivePagination.value === 'object'
-  ) {
-    effectivePagination.value.current = current
-    effectivePagination.value.pageSize = size
+  currentPage.value = current
+  pageSize.value = size
+
+  const mergedPagination = {
+    ...(paginationConfig.value || {}),
+    current,
+    pageSize: size,
+    total: total.value
   }
-  emit(
-    'change',
-    { ...effectivePagination.value, current, pageSize: size },
-    null,
-    null
-  )
+
+  paginationConfig.value?.onShowSizeChange?.(current, size)
+  paginationConfig.value?.onChange?.(current, size)
+  emit('change', mergedPagination, null, null)
 }
 
-// 监听数据变化
+// 监听分页配置变化（受控模式）
 watch(
-  () => currentData.value,
+  () => [paginationConfig.value?.current, paginationConfig.value?.pageSize] as const,
+  ([nextCurrent, nextPageSize]) => {
+    if (typeof nextCurrent === 'number') {
+      currentPage.value = nextCurrent
+    }
+    if (typeof nextPageSize === 'number') {
+      pageSize.value = nextPageSize
+    }
+  }
+)
+
+// 数据/分页变化后，更新表格内容
+watch(
+  () => paginatedData.value,
   (newData, oldData) => {
-    // 只在数组引用真正改变时才更新
     if (newData !== oldData) {
       vtableAdapter?.updateData(newData)
+    }
+  }
+)
+
+// 数据变化后，修正当前页边界
+watch(
+  () => [currentData.value.length, pageSize.value] as const,
+  ([dataLength, size]) => {
+    if (!paginationConfig.value) return
+    const totalPages = Math.max(1, Math.ceil(dataLength / size))
+    if (currentPage.value > totalPages) {
+      currentPage.value = totalPages
     }
   }
 )
@@ -221,10 +324,12 @@ watch(
 // 监听列配置变化
 watch(
   () => props.columns,
-  (newColumns, oldColumns) => {
+  async (newColumns, oldColumns) => {
     // 比较数组引用和长度
     if (newColumns !== oldColumns) {
-      vtableAdapter?.updateColumns(newColumns || [])
+      await runWithBusy(() => {
+        vtableAdapter?.updateColumns(newColumns || [])
+      })
     }
   }
 )
@@ -232,20 +337,39 @@ watch(
 // 监听主题变化
 watch(
   () => props.theme,
-  newTheme => {
-    vtableAdapter?.updateTheme(newTheme)
+  async newTheme => {
+    await runWithBusy(() => {
+      vtableAdapter?.updateTheme(newTheme)
+    })
+  }
+)
+
+watch(
+  () => [props.stripe, props.stripeColor] as const,
+  async ([stripe, stripeColor]) => {
+    await runWithBusy(() => {
+      vtableAdapter?.updateStripe(stripe, stripeColor)
+    })
+  }
+)
+
+watch(
+  () => props.bordered,
+  async bordered => {
+    await runWithBusy(() => {
+      vtableAdapter?.updateBordered(bordered)
+    })
   }
 )
 
 // 监听行选择变化
 watch(
   () => props.rowSelection?.selectedRowKeys,
-  newKeys => {
-    if (newKeys) {
+  (newKeys, oldKeys) => {
+    if (newKeys && !shallowEqualKeys(newKeys, oldKeys)) {
       vtableAdapter?.setSelectedRows(newKeys)
     }
-  },
-  { deep: true }
+  }
 )
 
 // 生命周期

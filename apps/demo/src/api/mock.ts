@@ -19,21 +19,40 @@ export interface MockDataItem {
  * @returns Promise 模拟异步 API 调用
  */
 export function generateTableData(count: number = 10000): Promise<MockDataItem[]> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     // 模拟网络延迟 100ms
-    setTimeout(() => {
-      const data: MockDataItem[] = []
-      for (let i = 1; i <= count; i++) {
-        data.push({
-          id: i,
-          name: `用户 ${i}`,
-          age: Math.floor(Math.random() * 50) + 20,
-          address: `北京市朝阳区某某街道 ${i}号`,
-          email: `user${i}@company.com`,
-          role: ['管理员', '普通用户', '访客'][i % 3],
-          status: ['在职', '离职', '休假'][i % 3]
-        })
+    setTimeout(async () => {
+      const data: MockDataItem[] = new Array(count)
+      const roles = ['管理员', '普通用户', '访客'] as const
+      const statuses = ['在职', '离职', '休假'] as const
+      const surnames = ['张', '王', '李', '赵', '刘', '陈', '杨', '黄', '周', '吴'] as const
+      const givenNames = ['伟', '敏', '静', '磊', '洋', '艳', '勇', '杰', '涛', '娜'] as const
+      const chunkSize = count >= 200000 ? 10000 : 5000
+      const hash = (n: number) => ((n * 1103515245 + 12345) >>> 0)
+
+      // 大数据量分批构造，避免长时间阻塞主线程导致页面卡死。
+      for (let start = 0; start < count; start += chunkSize) {
+        const end = Math.min(start + chunkSize, count)
+        for (let i = start; i < end; i++) {
+          const rowId = i + 1
+          const h1 = hash(rowId)
+          const h2 = hash(rowId + 97)
+          const h3 = hash(rowId + 193)
+          const name = `${surnames[h1 % surnames.length]}${givenNames[h2 % givenNames.length]}`
+          const districtNo = (h2 % 99) + 1
+          data[i] = {
+            id: rowId,
+            name: `${name}${rowId}`,
+            age: 22 + (h1 % 38),
+            address: `北京市朝阳区${districtNo}号街道 ${rowId}号`,
+            email: `user${rowId}@company.com`,
+            role: roles[h2 % 3],
+            status: statuses[h3 % 3]
+          }
+        }
+        await new Promise<void>(r => setTimeout(r, 0))
       }
+
       resolve(data)
     }, 100)
   })

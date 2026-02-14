@@ -37,7 +37,7 @@ export const DefaultLoadingAdapter: LoadingAdapter = {
     return true
   },
 
-  createComponent(config: LoadingConfig, slots?: LoadingSlots) {
+  createComponent(config: LoadingConfig, _slots?: LoadingSlots) {
     return defineComponent({
       name: 'DefaultLoading',
       setup(_, { slots }) {
@@ -66,27 +66,29 @@ export const DefaultLoadingAdapter: LoadingAdapter = {
             },
             [
               // 加载指示器
-              h('div', {
-                class: 'ctable-loading-spinner',
-                style: {
-                  width:
-                    config.size === 'small'
-                      ? '20px'
-                      : config.size === 'large'
-                        ? '40px'
-                        : '30px',
-                  height:
-                    config.size === 'small'
-                      ? '20px'
-                      : config.size === 'large'
-                        ? '40px'
-                        : '30px',
-                  border: '3px solid #f3f3f3',
-                  borderTop: '3px solid #1890ff',
-                  borderRadius: '50%',
-                  animation: 'ctable-spin 1s linear infinite'
-                }
-              }),
+              _slots?.indicator
+                ? _slots.indicator()
+                : h('div', {
+                    class: 'ctable-loading-spinner',
+                    style: {
+                      width:
+                        config.size === 'small'
+                          ? '20px'
+                          : config.size === 'large'
+                            ? '40px'
+                            : '30px',
+                      height:
+                        config.size === 'small'
+                          ? '20px'
+                          : config.size === 'large'
+                            ? '40px'
+                            : '30px',
+                      border: '3px solid #f3f3f3',
+                      borderTop: '3px solid #1890ff',
+                      borderRadius: '50%',
+                      animation: 'ctable-spin 1s linear infinite'
+                    }
+                  }),
               // 提示文字
               config.tip
                 ? h(
@@ -120,7 +122,7 @@ function checkAntDesignVueAvailable(): boolean {
     const module = require('ant-design-vue')
     AntDesignVueSpin = module.Spin
     return true
-  } catch (e) {
+  } catch {
     return false
   }
 }
@@ -133,12 +135,12 @@ export const AntDesignVueLoadingAdapter: LoadingAdapter = {
     return checkAntDesignVueAvailable()
   },
 
-  createComponent(config: LoadingConfig, slots?: LoadingSlots) {
+  createComponent(config: LoadingConfig, _slots?: LoadingSlots) {
     if (!this.isAvailable()) {
       console.warn(
         'ant-design-vue Spin component is not available, falling back to default loading'
       )
-      return DefaultLoadingAdapter.createComponent(config, slots)
+      return DefaultLoadingAdapter.createComponent(config, _slots)
     }
 
     return defineComponent({
@@ -167,7 +169,6 @@ export const AntDesignVueLoadingAdapter: LoadingAdapter = {
 // ========== element-plus 加载适配器 ==========
 
 let ElementPlusLoading: any = null
-let ElLoadingDirective: any = null
 
 function checkElementPlusAvailable(): boolean {
   if (ElementPlusLoading) return true
@@ -175,9 +176,8 @@ function checkElementPlusAvailable(): boolean {
   try {
     const module = require('element-plus')
     ElementPlusLoading = module.ElLoading
-    ElLoadingDirective = module.vLoading
     return true
-  } catch (e) {
+  } catch {
     return false
   }
 }
@@ -190,12 +190,12 @@ export const ElementPlusLoadingAdapter: LoadingAdapter = {
     return checkElementPlusAvailable()
   },
 
-  createComponent(config: LoadingConfig, slots?: LoadingSlots) {
+  createComponent(config: LoadingConfig, _slots?: LoadingSlots) {
     if (!this.isAvailable()) {
       console.warn(
         'element-plus loading is not available, falling back to default loading'
       )
-      return DefaultLoadingAdapter.createComponent(config, slots)
+      return DefaultLoadingAdapter.createComponent(config, _slots)
     }
 
     return defineComponent({
@@ -225,27 +225,29 @@ export const ElementPlusLoadingAdapter: LoadingAdapter = {
               }
             },
             [
-              h('div', {
-                class: 'ctable-loading-spinner',
-                style: {
-                  width:
-                    config.size === 'small'
-                      ? '20px'
-                      : config.size === 'large'
-                        ? '40px'
-                        : '30px',
-                  height:
-                    config.size === 'small'
-                      ? '20px'
-                      : config.size === 'large'
-                        ? '40px'
-                        : '30px',
-                  border: '3px solid #f3f3f3',
-                  borderTop: '3px solid #409eff',
-                  borderRadius: '50%',
-                  animation: 'ctable-spin 1s linear infinite'
-                }
-              }),
+              _slots?.indicator
+                ? _slots.indicator()
+                : h('div', {
+                    class: 'ctable-loading-spinner',
+                    style: {
+                      width:
+                        config.size === 'small'
+                          ? '20px'
+                          : config.size === 'large'
+                            ? '40px'
+                            : '30px',
+                      height:
+                        config.size === 'small'
+                          ? '20px'
+                          : config.size === 'large'
+                            ? '40px'
+                            : '30px',
+                      border: '3px solid #f3f3f3',
+                      borderTop: '3px solid #409eff',
+                      borderRadius: '50%',
+                      animation: 'ctable-spin 1s linear infinite'
+                    }
+                  }),
               config.tip
                 ? h(
                     'div',
@@ -278,7 +280,7 @@ function checkNaiveUiAvailable(): boolean {
     const module = require('naive-ui')
     NaiveUiSpin = module.NSpin
     return true
-  } catch (e) {
+  } catch {
     return false
   }
 }
@@ -291,12 +293,12 @@ export const NaiveUiLoadingAdapter: LoadingAdapter = {
     return checkNaiveUiAvailable()
   },
 
-  createComponent(config: LoadingConfig, slots?: LoadingSlots) {
+  createComponent(config: LoadingConfig, _slots?: LoadingSlots) {
     if (!this.isAvailable()) {
       console.warn(
         'naive-ui NSpin component is not available, falling back to default loading'
       )
-      return DefaultLoadingAdapter.createComponent(config, slots)
+      return DefaultLoadingAdapter.createComponent(config, _slots)
     }
 
     return defineComponent({
@@ -318,7 +320,8 @@ export const NaiveUiLoadingAdapter: LoadingAdapter = {
               class: config.wrapperClassName
             },
             {
-              default: slots?.default || (() => null)
+              default: slots?.default || (() => null),
+              icon: _slots?.indicator
             }
           )
       }

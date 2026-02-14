@@ -138,10 +138,11 @@ const navigationRoutes = computed(() => {
 /* ========== 右侧内容区 ========== */
 .main-content {
   flex: 1;
-  background: #ffffff;
+  background: #f0f2f5;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 /* 确保表格铺满整个区域 */

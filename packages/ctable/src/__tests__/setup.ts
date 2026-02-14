@@ -53,14 +53,16 @@ class MockCanvas {
 }
 
 // VTable 需要全局 createCanvas 函数
-global.createCanvas = vi.fn((width: number, height: number) => {
+// @ts-ignore - vitest mock
+;(global as any).createCanvas = vi.fn((width: number, height: number) => {
   const canvas = new MockCanvas()
   canvas.width = width
   canvas.height = height
   return canvas as any
 }) as any
 
-global.HTMLCanvasElement.prototype.getContext = vi.fn(function(this: HTMLCanvasElement, contextType: string) {
+// @ts-ignore - vitest mock
+;(global as any).HTMLCanvasElement.prototype.getContext = vi.fn(function(this: HTMLCanvasElement, contextType: string) {
   if (contextType === '2d') {
     return new MockCanvasRenderingContext2D() as any
   }
@@ -75,7 +77,8 @@ global.ResizeObserver = vi.fn().mockImplementation(() => ({
 }))
 
 // Mock requestAnimationFrame
-global.requestAnimationFrame = vi.fn(cb => setTimeout(cb, 16))
+// @ts-ignore - setTimeout returns NodeJS.Timeout
+global.requestAnimationFrame = vi.fn((cb: () => void) => setTimeout(cb, 16) as unknown)
 global.cancelAnimationFrame = vi.fn()
 
 // Mock getBoundingClientRect

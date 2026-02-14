@@ -1,7 +1,7 @@
-import type { SortConfig, SortOrder } from '../types'
+import type { SorterConfig, SortOrder } from '../types'
 
 export class SortManager {
-  private sortConfigs: Map<string, SortConfig> = new Map()
+  private sortConfigs: Map<string, SorterConfig> = new Map()
 
   /**
    * 设置排序配置
@@ -21,7 +21,7 @@ export class SortManager {
   /**
    * 获取指定字段的排序配置
    */
-  getSort(field: string): SortConfig | undefined {
+  getSort(field: string): SorterConfig | undefined {
     return this.sortConfigs.get(field)
   }
 
@@ -36,7 +36,7 @@ export class SortManager {
   /**
    * 获取所有排序配置
    */
-  getAllSorts(): SortConfig[] {
+  getAllSorts(): SorterConfig[] {
     return Array.from(this.sortConfigs.values())
   }
 

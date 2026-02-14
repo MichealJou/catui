@@ -1,4 +1,3 @@
-import { ref, type Ref } from 'vue'
 import type { Column, Cell } from '../types'
 import { Point } from '../utils/geometry'
 

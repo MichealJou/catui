@@ -50,6 +50,12 @@ export interface FilterDropdownProps {
 // ============================================================================
 
 export interface SorterConfig {
+  field: string
+  order: SortOrder
+  sorter?: (a: any, b: any) => number
+}
+
+export interface SorterOptions {
   compare?: (a: any, b: any) => number
   multiple?: number
 }

@@ -28,10 +28,8 @@ export {
 } from './AdapterFactory'
 
 // 导出适配器
-export {
-  DefaultPaginationAdapter,
-  AntDesignVuePaginationAdapter
-} from './AdapterFactory'
+export { DefaultPaginationAdapter } from './DefaultPaginationAdapter'
+export { AntDesignVuePaginationAdapter } from './AntDesignVuePaginationAdapter'
 
 // 导出类型
 export type {

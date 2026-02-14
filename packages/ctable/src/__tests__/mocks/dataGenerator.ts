@@ -3,6 +3,7 @@
  * 使用 faker 生成测试数据
  */
 
+// @ts-ignore - faker 是测试依赖
 import faker from 'faker'
 import type { Column } from '../../types'
 
