@@ -55,6 +55,9 @@ export interface SorterConfig {
   sorter?: (a: any, b: any) => number
 }
 
+export type SortMode = 'local' | 'remote'
+export type FilterMode = 'local' | 'remote'
+
 export interface SorterOptions {
   compare?: (a: any, b: any) => number
   multiple?: number
@@ -271,6 +274,20 @@ export interface CTableProps {
 
   // === 排序/筛选变化 ===
   onChange?: (pagination: any, filters: any, sorter: any) => void
+  sortMode?: SortMode
+  filterMode?: FilterMode
+  /**
+   * 本地排序时的全局兜底排序器（当列未提供 sorter 函数时生效）
+   */
+  localSorter?: (a: any, b: any, column: Column, order: SortOrder) => number
+  /**
+   * 远程排序回调：由业务层请求服务端并更新 data
+   */
+  onSortRequest?: (sorter: SorterConfig) => void | Promise<void>
+  /**
+   * 远程筛选回调：由业务层请求服务端并更新 data
+   */
+  onFilterRequest?: (filters: Record<string, any[]>) => void | Promise<void>
 
   // === CTable 特有属性 ===
   theme?: ThemePreset | ThemeConfig

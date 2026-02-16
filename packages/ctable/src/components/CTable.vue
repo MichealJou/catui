@@ -30,6 +30,7 @@
         :show-less-items="effectivePagination.showLessItems"
         :prev-text="effectivePagination.prevText"
         :next-text="effectivePagination.nextText"
+        :theme-preset="paginationThemePreset"
         @change="handlePageChange"
         @show-size-change="handlePageSizeChange"
       >
@@ -62,6 +63,7 @@ import {
 import type {
   CTableProps,
   SortOrder,
+  SorterConfig,
   FilterCondition,
   ColumnResizeInfo
 } from '../types'
@@ -84,7 +86,9 @@ const props = withDefaults(defineProps<CTableProps>(), {
   selectable: false,
   bordered: false,
   stripe: true,
-  loading: false
+  loading: false,
+  sortMode: 'local',
+  filterMode: 'local'
 })
 
 const emit = defineEmits<{
@@ -160,6 +164,121 @@ const currentData = computed(() => {
   return props.data || props.dataSource || []
 })
 
+const getColumnField = (column: any): string => {
+  const dataIndex = column?.dataIndex
+  if (Array.isArray(dataIndex) && dataIndex.length > 0) {
+    return String(dataIndex[0])
+  }
+  if (typeof dataIndex === 'string' && dataIndex.length > 0) {
+    return dataIndex
+  }
+  return String(column?.key ?? '')
+}
+
+const getRecordValue = (record: any, column: any) => {
+  const dataIndex = column?.dataIndex
+  if (Array.isArray(dataIndex) && dataIndex.length > 0) {
+    return dataIndex.reduce((acc: any, key: string) => acc?.[key], record)
+  }
+  const field = typeof dataIndex === 'string' && dataIndex.length > 0 ? dataIndex : column?.key
+  return record?.[field]
+}
+
+const internalSorter = ref<SorterConfig | null>(null)
+const internalFilters = ref<Record<string, any[]>>({})
+const effectiveSortMode = computed(() => {
+  if (props.sortMode === 'remote') return 'remote'
+  if (props.sortMode === 'local') return 'local'
+  return props.onSortRequest ? 'remote' : 'local'
+})
+const effectiveFilterMode = computed(() => {
+  if (props.filterMode === 'remote') return 'remote'
+  if (props.filterMode === 'local') return 'local'
+  return props.onFilterRequest ? 'remote' : 'local'
+})
+
+const normalizeSortOrder = (order: any): 'asc' | 'desc' | null => {
+  if (order === 'asc' || order === 'ascend') return 'asc'
+  if (order === 'desc' || order === 'descend') return 'desc'
+  return null
+}
+
+const processedData = computed(() => {
+  const source = currentData.value || []
+  if (!Array.isArray(source) || source.length === 0) {
+    return []
+  }
+
+  const columns = props.columns || []
+  let result = source.slice()
+
+  // 1) 筛选：列与列之间为 AND，同列多个值为 OR
+  if (effectiveFilterMode.value === 'local') {
+    const filterColumns = columns.filter(col => {
+      const field = getColumnField(col)
+      const controlled = Array.isArray(col.filteredValue) ? col.filteredValue : undefined
+      const uncontrolled = internalFilters.value[field]
+      return (controlled && controlled.length > 0) || (uncontrolled && uncontrolled.length > 0)
+    })
+
+    if (filterColumns.length > 0) {
+      result = result.filter(record =>
+        filterColumns.every(col => {
+          const field = getColumnField(col)
+          const controlled = Array.isArray(col.filteredValue) ? col.filteredValue : undefined
+          const selected = controlled ?? internalFilters.value[field] ?? []
+          if (selected.length === 0) return true
+          if (typeof col.onFilter === 'function') {
+            return selected.some(v => col.onFilter?.(v, record))
+          }
+          const value = getRecordValue(record, col)
+          return selected.includes(value) || selected.map(v => String(v)).includes(String(value))
+        })
+      )
+    }
+  }
+
+  // 2) 排序：按首个有 sortOrder 的列执行
+  const controlledSortColumn = columns.find(col => normalizeSortOrder(col.sortOrder))
+  const sortColumn = controlledSortColumn
+    || (internalSorter.value
+      ? columns.find(col => getColumnField(col) === internalSorter.value?.field)
+      : undefined)
+  if (sortColumn && effectiveSortMode.value === 'local') {
+    const order = controlledSortColumn
+      ? normalizeSortOrder(controlledSortColumn.sortOrder)
+      : normalizeSortOrder(internalSorter.value?.order)
+    if (!order) {
+      return result
+    }
+    const sorter =
+      typeof sortColumn.sorter === 'function'
+        ? sortColumn.sorter
+        : typeof (sortColumn.sorter as any)?.sorter === 'function'
+          ? (sortColumn.sorter as any).sorter
+          : null
+
+    result.sort((a, b) => {
+      const base = (() => {
+        if (sorter) return sorter(a, b)
+        if (props.localSorter) {
+          return props.localSorter(a, b, sortColumn, order)
+        }
+        const va = getRecordValue(a, sortColumn)
+        const vb = getRecordValue(b, sortColumn)
+        if (va == null && vb == null) return 0
+        if (va == null) return -1
+        if (vb == null) return 1
+        if (typeof va === 'number' && typeof vb === 'number') return va - vb
+        return String(va).localeCompare(String(vb))
+      })()
+      return order === 'desc' ? -base : base
+    })
+  }
+
+  return result
+})
+
 // 分页相关
 const effectivePagination = computed(() => {
   if (props.pagination === false) return null
@@ -173,20 +292,29 @@ const paginationConfig = computed(() => {
   return effectivePagination.value
 })
 
+const paginationThemePreset = computed<'ant-design' | 'element-plus' | 'naive'>(() => {
+  const theme = props.theme as any
+  const preset = typeof theme === 'string' ? theme : theme?.preset
+  if (typeof preset !== 'string') return 'ant-design'
+  if (preset.includes('element-plus')) return 'element-plus'
+  if (preset.includes('naive')) return 'naive'
+  return 'ant-design'
+})
+
 const currentPage = ref(paginationConfig.value?.current || paginationConfig.value?.defaultCurrent || 1)
 const pageSize = ref(paginationConfig.value?.pageSize || paginationConfig.value?.defaultPageSize || 10)
 
 const total = computed(() => {
-  return paginationConfig.value?.total ?? currentData.value.length
+  return paginationConfig.value?.total ?? processedData.value.length
 })
 
 const paginatedData = computed(() => {
   if (!paginationConfig.value) {
-    return currentData.value
+    return processedData.value
   }
   const start = (currentPage.value - 1) * pageSize.value
   const end = start + pageSize.value
-  return currentData.value.slice(start, end)
+  return processedData.value.slice(start, end)
 })
 
 /**
@@ -223,12 +351,27 @@ const initVTable = () => {
       emit('cell-click', cell, row, column, event)
     },
     onSortChange: sorter => {
+      internalSorter.value = sorter
+      if (effectiveSortMode.value === 'remote') {
+        props.onSortRequest?.(sorter)
+      }
       emit('sort-change', sorter.field, sorter.order)
       emit('change', effectivePagination.value, null, sorter)
     },
     onFilterChange: filters => {
+      const nextFilters: Record<string, any[]> = {}
+      filters.forEach((item: any) => {
+        const field = String(item?.field ?? '')
+        if (!field) return
+        nextFilters[field] = Array.isArray(item?.values) ? item.values : []
+      })
+      internalFilters.value = nextFilters
+      currentPage.value = 1
+      if (effectiveFilterMode.value === 'remote') {
+        props.onFilterRequest?.(nextFilters)
+      }
       emit('filter-change', filters)
-      emit('change', effectivePagination.value, filters, null)
+      emit('change', effectivePagination.value, nextFilters, internalSorter.value)
     },
     onScroll: event => {
       const scrollTop = Number((event as any)?.scrollTop ?? 0)
@@ -311,7 +454,7 @@ watch(
 
 // 数据变化后，修正当前页边界
 watch(
-  () => [currentData.value.length, pageSize.value] as const,
+  () => [processedData.value.length, pageSize.value] as const,
   ([dataLength, size]) => {
     if (!paginationConfig.value) return
     const totalPages = Math.max(1, Math.ceil(dataLength / size))
@@ -402,6 +545,8 @@ defineExpose({
    * 清除筛选
    */
   clearFilters: () => {
+    internalFilters.value = {}
+    currentPage.value = 1
     vtableAdapter?.clearFilters?.()
   },
 

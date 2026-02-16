@@ -2,11 +2,14 @@
   <div
     v-if="!hideOnSinglePage || totalPages > 1"
     class="cpagination"
-    :class="{
-      'cpagination-mini': size === 'small',
-      'cpagination-simple': simple,
-      'cpagination-disabled': disabled
-    }"
+    :class="[
+      {
+        'cpagination-mini': size === 'small',
+        'cpagination-simple': simple,
+        'cpagination-disabled': disabled
+      },
+      `cpagination-theme-${themePreset}`
+    ]"
   >
     <!-- 总数显示（左侧） -->
     <div v-if="showTotal && !simple" class="cpagination-total">
@@ -155,7 +158,11 @@ export default defineComponent({
     showLessItems: { type: Boolean, default: false },
     itemRender: { type: Function, default: undefined },
     prevText: { type: String, default: '上一页' },
-    nextText: { type: String, default: '下一页' }
+    nextText: { type: String, default: '下一页' },
+    themePreset: {
+      type: String as () => 'ant-design' | 'element-plus' | 'naive',
+      default: 'ant-design'
+    }
   },
 
   emits: ['change', 'showSizeChange'],
@@ -331,16 +338,35 @@ export default defineComponent({
 
 <style scoped>
 .cpagination {
+  --cpg-primary: #1677ff;
+  --cpg-primary-soft: rgba(22, 119, 255, 0.1);
+  --cpg-border: #d9d9d9;
+  --cpg-bg: #ffffff;
+  --cpg-disabled-bg: #f5f5f5;
+  --cpg-text: rgba(0, 0, 0, 0.88);
+  --cpg-text-secondary: rgba(0, 0, 0, 0.65);
+  --cpg-text-tertiary: rgba(0, 0, 0, 0.45);
+  --cpg-disabled-text: rgba(0, 0, 0, 0.25);
   display: flex;
   align-items: center;
   font-size: 14px;
-  color: rgba(0, 0, 0, 0.88);
+  color: var(--cpg-text);
   user-select: none;
+}
+
+.cpagination.cpagination-theme-element-plus {
+  --cpg-primary: #409eff;
+  --cpg-primary-soft: rgba(64, 158, 255, 0.16);
+}
+
+.cpagination.cpagination-theme-naive {
+  --cpg-primary: #18a058;
+  --cpg-primary-soft: rgba(24, 160, 88, 0.16);
 }
 
 .cpagination-total {
   margin-right: 16px;
-  color: rgba(0, 0, 0, 0.65);
+  color: var(--cpg-text-secondary);
 }
 
 .cpagination-list {
@@ -359,28 +385,28 @@ export default defineComponent({
   justify-content: center;
   border-radius: 6px;
   cursor: pointer;
-  border: 1px solid #d9d9d9;
-  background: #ffffff;
+  border: 1px solid var(--cpg-border);
+  background: var(--cpg-bg);
   transition: all 0.2s;
 }
 
 .cpagination-item:hover:not(.cpagination-item-active):not(
     .cpagination-item-disabled
   ) {
-  border-color: #1677ff;
-  color: #1677ff;
+  border-color: var(--cpg-primary);
+  color: var(--cpg-primary);
 }
 
 .cpagination-item-active {
-  border-color: #1677ff;
-  background: #1677ff;
+  border-color: var(--cpg-primary);
+  background: var(--cpg-primary);
   color: #ffffff;
 }
 
 .cpagination-item-disabled {
-  border-color: #d9d9d9;
-  background: #f5f5f5;
-  color: rgba(0, 0, 0, 0.25);
+  border-color: var(--cpg-border);
+  background: var(--cpg-disabled-bg);
+  color: var(--cpg-disabled-text);
   cursor: not-allowed;
 }
 
@@ -392,7 +418,7 @@ export default defineComponent({
 }
 
 .cpagination-item-link:hover:not(.cpagination-item-disabled) {
-  color: #1677ff;
+  color: var(--cpg-primary);
 }
 
 .cpagination-options {
@@ -411,35 +437,35 @@ export default defineComponent({
   width: 50px;
   height: 32px;
   padding: 0 8px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--cpg-border);
   border-radius: 6px;
   text-align: center;
 }
 
 .cpagination-options-quick-jumper input:focus {
   outline: none;
-  border-color: #1677ff;
-  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.1);
+  border-color: var(--cpg-primary);
+  box-shadow: 0 0 0 2px var(--cpg-primary-soft);
 }
 
 .cpagination-options-changer {
   height: 32px;
   padding: 0 8px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--cpg-border);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--cpg-bg);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .cpagination-options-changer:hover {
-  border-color: #1677ff;
+  border-color: var(--cpg-primary);
 }
 
 .cpagination-options-changer:focus {
   outline: none;
-  border-color: #1677ff;
-  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.1);
+  border-color: var(--cpg-primary);
+  box-shadow: 0 0 0 2px var(--cpg-primary-soft);
 }
 
 /* 迷你版本 */
@@ -471,13 +497,13 @@ export default defineComponent({
   width: 50px;
   height: 32px;
   padding: 0 8px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--cpg-border);
   border-radius: 6px;
   text-align: center;
 }
 
 .cpagination-slash {
-  color: rgba(0, 0, 0, 0.45);
+  color: var(--cpg-text-tertiary);
 }
 
 /* 禁用状态 */

@@ -84,6 +84,162 @@ const columns: Column[] = [
 ]
 ```
 
+### 排序模式（本地 / 远程）
+
+`CTable` 支持两种排序模式：
+
+- `sortMode="local"`：本地排序（默认）
+- `sortMode="remote"`：远程排序（仅抛出排序事件，不改本地数据顺序）
+
+#### 1) 本地排序（默认内置比较）
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  sort-mode="local"
+/>
+```
+
+```ts
+const columns: Column[] = [
+  { key: 'id', title: 'ID', dataIndex: 'id', sortable: true },
+  { key: 'age', title: '年龄', dataIndex: 'age', sortable: true }
+]
+```
+
+#### 2) 本地排序（列级自定义 sorter）
+
+```ts
+const columns: Column[] = [
+  {
+    key: 'name',
+    title: '姓名',
+    dataIndex: 'name',
+    sortable: true,
+    sorter: (a, b) => String(a.name).localeCompare(String(b.name))
+  }
+]
+```
+
+#### 3) 本地排序（全局 localSorter 扩展点）
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  sort-mode="local"
+  :local-sorter="localSorter"
+/>
+```
+
+```ts
+const localSorter = (a: any, b: any, column: Column, order: 'asc' | 'desc' | null) => {
+  const field = (column.dataIndex as string) || column.key
+  const va = a?.[field]
+  const vb = b?.[field]
+  if (typeof va === 'number' && typeof vb === 'number') return va - vb
+  return String(va ?? '').localeCompare(String(vb ?? ''))
+}
+```
+
+#### 4) 远程排序（服务端排序）
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  sort-mode="remote"
+  :on-sort-request="handleSortRequest"
+  @sort-change="handleSortChange"
+/>
+```
+
+```ts
+const handleSortRequest = async (sorter: SorterConfig) => {
+  // 根据 sorter.field / sorter.order 请求后端，然后回写 data
+  // sorter.order: 'asc' | 'desc' | null
+  const res = await fetchUsers({ sortField: sorter.field, sortOrder: sorter.order })
+  data.value = res.list
+}
+```
+
+> 说明：当 `sortMode='remote'` 时，组件不会做本地排序；由业务层控制数据更新。
+
+### 列筛选
+
+筛选通过列配置 `filters` + 可选 `onFilter` 实现：
+
+```ts
+const columns: Column[] = [
+  {
+    key: 'role',
+    title: '角色',
+    dataIndex: 'role',
+    filters: [
+      { text: '管理员', value: '管理员' },
+      { text: '普通用户', value: '普通用户' },
+      { text: '访客', value: '访客' }
+    ]
+  },
+  {
+    key: 'status',
+    title: '状态',
+    dataIndex: 'status',
+    filters: [
+      { text: '在职', value: '在职' },
+      { text: '离职', value: '离职' },
+      { text: '休假', value: '休假' }
+    ],
+    onFilter: (value, record) => record.status === value
+  }
+]
+```
+
+筛选事件：
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  @filter-change="handleFilterChange"
+/>
+```
+
+```ts
+const handleFilterChange = (filters: Array<{ field: string; values: any[] }>) => {
+  console.log(filters)
+}
+```
+
+### 筛选模式（本地 / 远程）
+
+- `filterMode="local"`：本地筛选（默认）
+- `filterMode="remote"`：远程筛选（仅抛出筛选条件，由业务层更新数据）
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  filter-mode="remote"
+  :on-filter-request="handleFilterRequest"
+  @change="handleTableChange"
+/>
+```
+
+```ts
+const handleFilterRequest = async (filters: Record<string, any[]>) => {
+  // 根据 filters 请求后端并回写 data
+  const res = await fetchUsers({ filters })
+  data.value = res.list
+}
+
+const handleTableChange = (pagination, filters, sorter) => {
+  // filters 结构：{ role: ['管理员'], status: ['在职'] }
+  console.log(filters)
+}
+```
+
 ### 行选择 (RowSelection)
 
 ```typescript
