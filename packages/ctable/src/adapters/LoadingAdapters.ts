@@ -3,7 +3,7 @@
  * 支持 ant-design-vue、element-plus、naive-ui 等不同 UI 库的加载组件
  */
 
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, shallowRef } from 'vue'
 
 // ========== 类型定义 ==========
 
@@ -27,6 +27,73 @@ export interface LoadingSlots {
   indicator?: () => any
 }
 
+const createDefaultOverlay = (
+  config: LoadingConfig,
+  slots: LoadingSlots | undefined,
+  color: string
+) => {
+  if (!config.spinning) {
+    return slots?.default ? slots.default() : null
+  }
+  return h(
+    'div',
+    {
+      class: ['ctable-loading-overlay', config.wrapperClassName],
+      style: {
+        position: 'absolute',
+        top: '0',
+        left: '0',
+        right: '0',
+        bottom: '0',
+        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: '9999'
+      }
+    },
+    [
+      slots?.indicator
+        ? slots.indicator()
+        : h('div', {
+            class: 'ctable-loading-spinner',
+            style: {
+              width:
+                config.size === 'small'
+                  ? '20px'
+                  : config.size === 'large'
+                    ? '40px'
+                    : '30px',
+              height:
+                config.size === 'small'
+                  ? '20px'
+                  : config.size === 'large'
+                    ? '40px'
+                    : '30px',
+              border: '3px solid #f3f3f3',
+              borderTop: `3px solid ${color}`,
+              borderRadius: '50%',
+              animation: 'ctable-spin 1s linear infinite'
+            }
+          }),
+      config.tip
+        ? h(
+            'div',
+            {
+              style: {
+                marginTop: '12px',
+                color: '#666',
+                fontSize: '14px'
+              }
+            },
+            config.tip
+          )
+        : null
+    ]
+  )
+}
+
 // ========== 内置加载适配器 ==========
 
 export const DefaultLoadingAdapter: LoadingAdapter = {
@@ -37,75 +104,11 @@ export const DefaultLoadingAdapter: LoadingAdapter = {
     return true
   },
 
-  createComponent(config: LoadingConfig, _slots?: LoadingSlots) {
+  createComponent(config: LoadingConfig, slots?: LoadingSlots) {
     return defineComponent({
       name: 'DefaultLoading',
-      setup(_, { slots }) {
-        return () => {
-          if (!config.spinning) {
-            return slots?.default ? slots.default() : null
-          }
-
-          return h(
-            'div',
-            {
-              class: ['ctable-loading-overlay', config.wrapperClassName],
-              style: {
-                position: 'absolute',
-                top: '0',
-                left: '0',
-                right: '0',
-                bottom: '0',
-                backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: '9999'
-              }
-            },
-            [
-              // 加载指示器
-              _slots?.indicator
-                ? _slots.indicator()
-                : h('div', {
-                    class: 'ctable-loading-spinner',
-                    style: {
-                      width:
-                        config.size === 'small'
-                          ? '20px'
-                          : config.size === 'large'
-                            ? '40px'
-                            : '30px',
-                      height:
-                        config.size === 'small'
-                          ? '20px'
-                          : config.size === 'large'
-                            ? '40px'
-                            : '30px',
-                      border: '3px solid #f3f3f3',
-                      borderTop: '3px solid #1890ff',
-                      borderRadius: '50%',
-                      animation: 'ctable-spin 1s linear infinite'
-                    }
-                  }),
-              // 提示文字
-              config.tip
-                ? h(
-                    'div',
-                    {
-                      style: {
-                        marginTop: '12px',
-                        color: '#666',
-                        fontSize: '14px'
-                      }
-                    },
-                    config.tip
-                  )
-                : null
-            ]
-          )
-        }
+      setup() {
+        return () => createDefaultOverlay(config, slots, '#1677ff')
       }
     })
   }
@@ -114,17 +117,21 @@ export const DefaultLoadingAdapter: LoadingAdapter = {
 // ========== ant-design-vue 加载适配器 ==========
 
 let AntDesignVueSpin: any = null
+let antLoadingPromise: Promise<any> | null = null
 
-function checkAntDesignVueAvailable(): boolean {
-  if (AntDesignVueSpin) return true
-
-  try {
-    const module = require('ant-design-vue')
-    AntDesignVueSpin = module.Spin
-    return true
-  } catch {
-    return false
-  }
+function loadAntDesignSpin() {
+  if (AntDesignVueSpin) return Promise.resolve(AntDesignVueSpin)
+  if (antLoadingPromise) return antLoadingPromise
+  antLoadingPromise = import('ant-design-vue')
+    .then((mod: any) => {
+      AntDesignVueSpin = mod?.Spin ?? null
+      return AntDesignVueSpin
+    })
+    .catch(() => null)
+    .finally(() => {
+      antLoadingPromise = null
+    })
+  return antLoadingPromise
 }
 
 export const AntDesignVueLoadingAdapter: LoadingAdapter = {
@@ -132,23 +139,26 @@ export const AntDesignVueLoadingAdapter: LoadingAdapter = {
   source: 'ant-design-vue',
 
   isAvailable(): boolean {
-    return checkAntDesignVueAvailable()
+    return true
   },
 
-  createComponent(config: LoadingConfig, _slots?: LoadingSlots) {
-    if (!this.isAvailable()) {
-      console.warn(
-        'ant-design-vue Spin component is not available, falling back to default loading'
-      )
-      return DefaultLoadingAdapter.createComponent(config, _slots)
-    }
-
+  createComponent(config: LoadingConfig, slots?: LoadingSlots) {
     return defineComponent({
       name: 'AntDesignVueLoading',
-      setup(_, { slots }) {
-        return () =>
-          h(
-            AntDesignVueSpin,
+      setup() {
+        const compRef = shallowRef<any>(AntDesignVueSpin)
+        if (!compRef.value) {
+          loadAntDesignSpin().then(comp => {
+            if (comp) compRef.value = comp
+          })
+        }
+
+        return () => {
+          if (!compRef.value) {
+            return createDefaultOverlay(config, slots, '#1677ff')
+          }
+          return h(
+            compRef.value,
             {
               spinning: config.spinning,
               delay: config.delay,
@@ -161,6 +171,7 @@ export const AntDesignVueLoadingAdapter: LoadingAdapter = {
               indicator: slots?.indicator
             }
           )
+        }
       }
     })
   }
@@ -168,44 +179,22 @@ export const AntDesignVueLoadingAdapter: LoadingAdapter = {
 
 // ========== element-plus 加载适配器 ==========
 
-let ElementPlusLoading: any = null
-
-function checkElementPlusAvailable(): boolean {
-  if (ElementPlusLoading) return true
-
-  try {
-    const module = require('element-plus')
-    ElementPlusLoading = module.ElLoading
-    return true
-  } catch {
-    return false
-  }
-}
-
 export const ElementPlusLoadingAdapter: LoadingAdapter = {
   name: 'ElementPlusLoadingAdapter',
   source: 'element-plus',
 
   isAvailable(): boolean {
-    return checkElementPlusAvailable()
+    return true
   },
 
-  createComponent(config: LoadingConfig, _slots?: LoadingSlots) {
-    if (!this.isAvailable()) {
-      console.warn(
-        'element-plus loading is not available, falling back to default loading'
-      )
-      return DefaultLoadingAdapter.createComponent(config, _slots)
-    }
-
+  createComponent(config: LoadingConfig, slots?: LoadingSlots) {
     return defineComponent({
       name: 'ElementPlusLoading',
-      setup(_, { slots }) {
+      setup() {
         return () => {
           if (!config.spinning) {
             return slots?.default ? slots.default() : null
           }
-
           return h(
             'div',
             {
@@ -225,8 +214,8 @@ export const ElementPlusLoadingAdapter: LoadingAdapter = {
               }
             },
             [
-              _slots?.indicator
-                ? _slots.indicator()
+              slots?.indicator
+                ? slots.indicator()
                 : h('div', {
                     class: 'ctable-loading-spinner',
                     style: {
@@ -254,7 +243,7 @@ export const ElementPlusLoadingAdapter: LoadingAdapter = {
                     {
                       style: {
                         marginTop: '12px',
-                        color: '#666',
+                        color: '#606266',
                         fontSize: '14px'
                       }
                     },
@@ -272,17 +261,21 @@ export const ElementPlusLoadingAdapter: LoadingAdapter = {
 // ========== naive-ui 加载适配器 ==========
 
 let NaiveUiSpin: any = null
+let naiveLoadingPromise: Promise<any> | null = null
 
-function checkNaiveUiAvailable(): boolean {
-  if (NaiveUiSpin) return true
-
-  try {
-    const module = require('naive-ui')
-    NaiveUiSpin = module.NSpin
-    return true
-  } catch {
-    return false
-  }
+function loadNaiveSpin() {
+  if (NaiveUiSpin) return Promise.resolve(NaiveUiSpin)
+  if (naiveLoadingPromise) return naiveLoadingPromise
+  naiveLoadingPromise = import('naive-ui')
+    .then((mod: any) => {
+      NaiveUiSpin = mod?.NSpin ?? null
+      return NaiveUiSpin
+    })
+    .catch(() => null)
+    .finally(() => {
+      naiveLoadingPromise = null
+    })
+  return naiveLoadingPromise
 }
 
 export const NaiveUiLoadingAdapter: LoadingAdapter = {
@@ -290,23 +283,27 @@ export const NaiveUiLoadingAdapter: LoadingAdapter = {
   source: 'naive-ui',
 
   isAvailable(): boolean {
-    return checkNaiveUiAvailable()
+    return true
   },
 
-  createComponent(config: LoadingConfig, _slots?: LoadingSlots) {
-    if (!this.isAvailable()) {
-      console.warn(
-        'naive-ui NSpin component is not available, falling back to default loading'
-      )
-      return DefaultLoadingAdapter.createComponent(config, _slots)
-    }
-
+  createComponent(config: LoadingConfig, slots?: LoadingSlots) {
     return defineComponent({
       name: 'NaiveUiLoading',
-      setup(_, { slots }) {
-        return () =>
-          h(
-            NaiveUiSpin,
+      setup() {
+        const compRef = shallowRef<any>(NaiveUiSpin)
+        if (!compRef.value) {
+          loadNaiveSpin().then(comp => {
+            if (comp) compRef.value = comp
+          })
+        }
+
+        return () => {
+          if (!compRef.value) {
+            return createDefaultOverlay(config, slots, '#18a058')
+          }
+
+          return h(
+            compRef.value,
             {
               show: config.spinning,
               delay: config.delay,
@@ -321,9 +318,10 @@ export const NaiveUiLoadingAdapter: LoadingAdapter = {
             },
             {
               default: slots?.default || (() => null),
-              icon: _slots?.indicator
+              icon: slots?.indicator
             }
           )
+        }
       }
     })
   }

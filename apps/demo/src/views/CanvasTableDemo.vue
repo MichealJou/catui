@@ -39,6 +39,9 @@
               </div>
             </div>
             <div class="header-stats">
+              <button class="panel-toggle-btn" @click="controlCollapsed = !controlCollapsed">
+                {{ controlCollapsed ? '展开控制面板' : '收起控制面板' }}
+              </button>
               <div class="stat-pill">
                 <span class="stat-pill-label">数据总量</span>
                 <span class="stat-pill-value">{{ data.length.toLocaleString() }}</span>
@@ -50,7 +53,7 @@
             </div>
           </div>
 
-          <div class="control-shell">
+          <div v-show="!controlCollapsed" class="control-shell">
             <div class="control-tabs">
               <button
                 class="control-tab"
@@ -144,6 +147,33 @@
               </div>
 
               <div class="control-item">
+                <span class="row-label">📏 表格尺寸</span>
+                <div class="btn-group-inline">
+                  <button
+                    class="data-btn-inline"
+                    :class="{ active: tableSize === 'large' }"
+                    @click="tableSize = 'large'"
+                  >
+                    large
+                  </button>
+                  <button
+                    class="data-btn-inline"
+                    :class="{ active: tableSize === 'middle' }"
+                    @click="tableSize = 'middle'"
+                  >
+                    middle
+                  </button>
+                  <button
+                    class="data-btn-inline"
+                    :class="{ active: tableSize === 'small' }"
+                    @click="tableSize = 'small'"
+                  >
+                    small
+                  </button>
+                </div>
+              </div>
+
+              <div class="control-item">
                 <span class="row-label">🧪 筛选模式</span>
                 <div class="btn-group-inline">
                   <button
@@ -184,6 +214,146 @@
                     <input type="checkbox" v-model="showPagination" />
                     <span>分页</span>
                   </label>
+                  <label class="toggle-item-inline">
+                    <input type="checkbox" v-model="columnDraggable" />
+                    <span>列拖拽</span>
+                  </label>
+                  <label class="toggle-item-inline">
+                    <input type="checkbox" v-model="groupedHeader" />
+                    <span>分组表头</span>
+                  </label>
+                  <label class="toggle-item-inline">
+                    <input type="checkbox" v-model="showDragGuides" />
+                    <span>拖拽引导线</span>
+                  </label>
+                  <label class="toggle-item-inline">
+                    <input type="checkbox" v-model="allowCrossGroupDrag" />
+                    <span>跨组拖拽</span>
+                  </label>
+                  <label class="toggle-item-inline">
+                    <input type="checkbox" v-model="treeMode" />
+                    <span>树形数据</span>
+                  </label>
+                  <label class="toggle-item-inline">
+                    <input type="checkbox" v-model="expandableRows" />
+                    <span>行展开</span>
+                  </label>
+                  <label class="toggle-item-inline">
+                    <input type="checkbox" v-model="contextMenuEnabled" />
+                    <span>右键菜单</span>
+                  </label>
+                  <label class="toggle-item-inline">
+                    <input type="checkbox" v-model="editable" />
+                    <span>可编辑</span>
+                  </label>
+                  <label class="toggle-item-inline">
+                    <input type="checkbox" v-model="keyboardNavigation" />
+                    <span>键盘导航</span>
+                  </label>
+                  <label class="toggle-item-inline">
+                    <input type="checkbox" v-model="clipboardEnabled" />
+                    <span>复制粘贴</span>
+                  </label>
+                  <label class="toggle-item-inline">
+                    <input type="checkbox" v-model="mergeDemoEnabled" />
+                    <span>合并单元格演示</span>
+                  </label>
+                </div>
+              </div>
+              <div class="control-item">
+                <span class="row-label">✍️ 编辑模式</span>
+                <div class="btn-group-inline">
+                  <button class="data-btn-inline" :class="{ active: editMode === 'cell' }" @click="editMode = 'cell'">单元格</button>
+                  <button class="data-btn-inline" :class="{ active: editMode === 'row' }" @click="editMode = 'row'">整行</button>
+                </div>
+              </div>
+              <div class="control-item">
+                <span class="row-label">🎯 编辑触发</span>
+                <div class="btn-group-inline">
+                  <button class="data-btn-inline" :class="{ active: editTrigger === 'click' }" @click="editTrigger = 'click'">click</button>
+                  <button class="data-btn-inline" :class="{ active: editTrigger === 'dblclick' }" @click="editTrigger = 'dblclick'">dblclick</button>
+                  <button class="data-btn-inline" :class="{ active: editTrigger === 'enter' }" @click="editTrigger = 'enter'">enter</button>
+                  <button class="data-btn-inline" :class="{ active: editTrigger === 'manual' }" @click="editTrigger = 'manual'">manual</button>
+                </div>
+              </div>
+              <div class="control-item control-item-full">
+                <span class="row-label">🧩 列显隐</span>
+                <div class="toggle-group-inline">
+                  <label
+                    v-for="col in visibilityColumns"
+                    :key="col.key"
+                    class="toggle-item-inline"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="visibleColumnKeys.includes(col.key)"
+                      @change="toggleColumnVisible(col.key)"
+                    />
+                    <span>{{ col.title }}</span>
+                  </label>
+                </div>
+              </div>
+              <div class="control-item control-item-full">
+                <span class="row-label">🧰 列管理与导出</span>
+                <div class="btn-group-inline">
+                  <button class="data-btn-inline" @click="expandAllTree">
+                    展开全部
+                  </button>
+                  <button class="data-btn-inline" @click="collapseAllTree">
+                    折叠全部
+                  </button>
+                  <button class="data-btn-inline" @click="handleResetColumnOrder">
+                    重置列顺序
+                  </button>
+                  <button class="data-btn-inline" @click="saveColumnsLayout">
+                    保存列状态
+                  </button>
+                  <button class="data-btn-inline" @click="restoreColumnsLayout">
+                    恢复列状态
+                  </button>
+                  <button class="data-btn-inline" @click="clearColumnsLayout">
+                    清除列状态
+                  </button>
+                  <button class="data-btn-inline" @click="invertSelection">
+                    反选
+                  </button>
+                  <button class="data-btn-inline" @click="exportCurrentCsv">
+                    导出 CSV
+                  </button>
+                  <button class="data-btn-inline" @click="exportCurrentExcel">
+                    导出 Excel
+                  </button>
+                  <label class="data-btn-inline file-btn-inline">
+                    导入文件
+                    <input type="file" accept=".csv,.xlsx" @change="handleImportFile" />
+                  </label>
+                  <button class="data-btn-inline" @click="printCurrentTable">
+                    打印
+                  </button>
+                  <button class="data-btn-inline" :disabled="!editable" @click="startManualEdit">
+                    {{ manualEditButtonText }}
+                  </button>
+                  <button class="data-btn-inline" :disabled="!editable || !rowEditing" @click="saveManualEditRow">
+                    保存整行
+                  </button>
+                  <button class="data-btn-inline" :disabled="!editable || !rowEditing" @click="cancelManualEditRow">
+                    取消整行
+                  </button>
+                  <button class="data-btn-inline" :disabled="!clipboardEnabled" @click="copySelection">
+                    复制选区
+                  </button>
+                  <button class="data-btn-inline" :disabled="!clipboardEnabled" @click="pasteDemoValue">
+                    粘贴示例
+                  </button>
+                </div>
+              </div>
+              <div class="control-item control-item-full">
+                <span class="row-label">📣 交互状态</span>
+                <div class="effect-hint">
+                  <div>{{ effectHint }}</div>
+                  <div class="effect-hint-sub">
+                    快捷键：方向键移动，{{ editTrigger === 'enter' || editTrigger === 'manual' ? 'Enter 编辑，' : '' }}Ctrl/Cmd + C/V 复制粘贴
+                  </div>
                 </div>
               </div>
             </div>
@@ -212,8 +382,10 @@
 
           <div class="table-container" :class="{ loading: loading }">
             <CTable
-              :columns="tableColumns"
+              ref="tableRef"
+              :columns="tableColumnsState"
               :data="data"
+              :size="tableSize"
               :stripe="stripe"
               :selectable="selectable"
               :selectable-type="selectable ? 'multiple' : undefined"
@@ -225,11 +397,43 @@
               :filter-mode="filterMode"
               :on-sort-request="handleSortRequest"
               :on-filter-request="handleFilterRequest"
+              :column-drag-config="columnDragConfig"
+              :context-menu="contextMenuConfig"
+              :editable="editable"
+              :edit-mode="editMode"
+              :edit-trigger="editTrigger"
+              :keyboard-navigation="keyboardNavigation"
+              :clipboard="clipboardEnabled"
+              :merge-cells="mergeCellsConfig"
+              :column-state-persistence="{ key: 'catui:demo:table:column-state', autoLoad: true, autoSave: true }"
+              :children-column-name="'children'"
+              :default-expand-all-rows="false"
+              :expand-row-by-click="expandableRows"
+              :expanded-row-render="expandableRows ? expandedRowRender : undefined"
+              :indent-size="18"
               :theme="currentTheme"
               @cell-click="handleCellClick"
               @row-click="handleRowClick"
+              @row-contextmenu="handleRowContextmenu"
               @selection-change="handleSelectionChange"
-            />
+              @column-visibility-change="handleColumnVisibilityChange"
+              @column-drag-start="handleColumnDragStart"
+              @column-drag-end="handleColumnDragEnd"
+              @columns-change="handleColumnsChange"
+              @context-menu-click="handleContextMenuClick"
+              @cell-edit-start="handleCellEditStart"
+              @cell-edit-end="handleCellEditEnd"
+              @cell-validate-error="handleCellValidateError"
+              @row-edit-start="handleRowEditStart"
+              @row-edit-save="handleRowEditSave"
+              @row-edit-cancel="handleRowEditCancel"
+            >
+              <template #summary="{ data: source }">
+                <div class="demo-summary">
+                  当前数据量：{{ source.length }}，已选中：{{ selectedRows.length }}
+                </div>
+              </template>
+            </CTable>
           </div>
         </div>
       </main>
@@ -238,8 +442,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import CTable, { type Column, type ThemePreset } from '@catui/ctable'
+import { computed, ref, watch } from 'vue'
+import CTable, { type Column, type ColumnDragConfig, type ThemePreset } from '@catui/ctable'
 import { getTableData, type MockDataItem } from '../api/mock'
 
 type DemoTableRow = MockDataItem & { __index__: number }
@@ -255,6 +459,7 @@ const dataOptions = [
 
 // 数据状态
 const data = ref<DemoTableRow[]>([])
+const tableRef = ref<any>(null)
 const rawData = ref<DemoTableRow[]>([])
 const loading = ref(false)
 const selectedRows = ref<any[]>([])
@@ -263,16 +468,35 @@ const columnOptions = [10, 20, 50, 100] as const
 const columnCount = ref<number>(10)
 const currentDataSize = ref<number>(10000)
 const activeControlGroup = ref<'data' | 'style' | 'feature'>('data')
+const controlCollapsed = ref(true)
 
 // 功能开关
 const stripe = ref(true)
 const selectable = ref(true)
 const bordered = ref(true)
 const showPagination = ref(true)
+const columnDraggable = ref(false)
+const groupedHeader = ref(false)
+const showDragGuides = ref(true)
+const allowCrossGroupDrag = ref(false)
+const treeMode = ref(false)
+const expandableRows = ref(false)
+const contextMenuEnabled = ref(true)
+const editable = ref(true)
+const editMode = ref<'cell' | 'row'>('cell')
+const editTrigger = ref<'click' | 'dblclick' | 'enter' | 'manual'>('click')
+const keyboardNavigation = ref(true)
+const clipboardEnabled = ref(true)
+const mergeDemoEnabled = ref(false)
 const sortMode = ref<'local' | 'remote'>('local')
 const filterMode = ref<'local' | 'remote'>('local')
+const tableSize = ref<'large' | 'middle' | 'small'>('middle')
 const remoteFilters = ref<Record<string, any[]>>({})
 const remoteSorter = ref<{ field: string; order: 'asc' | 'desc' | null } | null>(null)
+const visibleColumnKeys = ref<string[]>(['id', 'name', 'age', 'address', 'email', 'role', 'status'])
+const effectHint = ref('点击单元格后可用方向键导航；手动编辑可快速验证编辑能力。')
+const manualEditButtonText = computed(() => (editMode.value === 'row' ? '手动编辑整行' : '手动编辑单元格'))
+const rowEditing = ref(false)
 
 const paginationCurrent = ref(1)
 const paginationPageSize = ref(20)
@@ -319,10 +543,26 @@ const performanceColumnTemplates: Column[] = [
     title: '姓名',
     dataIndex: 'name',
     width: 140,
+    editable: true,
     sortable: true,
     sorter: (a: any, b: any) => String(a?.name ?? '').localeCompare(String(b?.name ?? ''))
   },
-  { key: 'age', title: '年龄', dataIndex: 'age', width: 100, align: 'center', sortable: true },
+  {
+    key: 'age',
+    title: '年龄',
+    dataIndex: 'age',
+    width: 100,
+    align: 'center',
+    sortable: true,
+    editable: true,
+    editor: 'number',
+    validator: (value: any) => {
+      const num = Number(value)
+      if (!Number.isFinite(num)) return '年龄必须是数字'
+      if (num < 0 || num > 120) return '年龄需在 0-120 之间'
+      return true
+    }
+  },
   { key: 'address', title: '地址', dataIndex: 'address', width: 240 },
   { key: 'email', title: '邮箱', dataIndex: 'email', width: 220 },
   {
@@ -353,14 +593,185 @@ const performanceColumnTemplates: Column[] = [
   }
 ]
 
+const visibilityColumns = performanceColumnTemplates
+  .filter(col => ['id', 'name', 'age', 'address', 'email', 'role', 'status'].includes(col.key))
+  .map(col => ({ key: col.key, title: col.title || col.key }))
+
+const toggleColumnVisible = (columnKey: string) => {
+  if (visibleColumnKeys.value.includes(columnKey)) {
+    if (visibleColumnKeys.value.length <= 1) return
+    visibleColumnKeys.value = visibleColumnKeys.value.filter(k => k !== columnKey)
+    return
+  }
+  visibleColumnKeys.value = [...visibleColumnKeys.value, columnKey]
+}
+
+const handleColumnVisibilityChange = (columnKey: string, visible: boolean) => {
+  if (visible) {
+    if (!visibleColumnKeys.value.includes(columnKey)) {
+      visibleColumnKeys.value = [...visibleColumnKeys.value, columnKey]
+    }
+    return
+  }
+  if (visibleColumnKeys.value.length <= 1) return
+  visibleColumnKeys.value = visibleColumnKeys.value.filter(key => key !== columnKey)
+}
+
+const exportCurrentCsv = () => {
+  tableRef.value?.exportCsv?.(`catui-table-${Date.now()}.csv`)
+}
+
+const exportCurrentExcel = () => {
+  tableRef.value?.exportExcel?.(`catui-table-${Date.now()}.xlsx`, 'Data')
+}
+
+const handleImportFile = async (event: Event) => {
+  const input = event.target as HTMLInputElement | null
+  const file = input?.files?.[0]
+  if (!file) return
+  const rows = await tableRef.value?.importFile?.(file, { mode: 'replace' })
+  if (Array.isArray(rows) && rows.length > 0) {
+    data.value = rows.map((row: any, index: number) => ({
+      ...row,
+      __index__: index + 1
+    })) as any
+    rawData.value = data.value as any
+    paginationCurrent.value = 1
+  }
+  if (input) {
+    input.value = ''
+  }
+}
+
+const printCurrentTable = () => {
+  tableRef.value?.printTable?.('CatUI 表格打印')
+}
+
+const startManualEdit = async () => {
+  if (!editable.value) {
+    effectHint.value = '请先开启“可编辑”'
+    return
+  }
+  if (editMode.value === 'row') {
+    await tableRef.value?.startEditRow?.()
+  } else {
+    await tableRef.value?.startEditCell?.()
+  }
+}
+
+const saveManualEditRow = () => {
+  const ok = tableRef.value?.saveEditRow?.()
+  if (!ok) return
+  rowEditing.value = false
+  effectHint.value = '整行编辑已保存'
+}
+
+const cancelManualEditRow = () => {
+  const ok = tableRef.value?.cancelEditRow?.()
+  if (!ok) return
+  rowEditing.value = false
+  effectHint.value = '整行编辑已取消'
+}
+
+const copySelection = async () => {
+  if (!clipboardEnabled.value) {
+    effectHint.value = '请先开启“复制粘贴”'
+    return
+  }
+  const text = await tableRef.value?.copySelection?.()
+  effectHint.value = text ? `已复制 ${text.split('\n').length} 行` : '当前没有可复制的选区'
+}
+
+const pasteDemoValue = () => {
+  if (!clipboardEnabled.value) {
+    effectHint.value = '请先开启“复制粘贴”'
+    return
+  }
+  tableRef.value?.pasteSelection?.('演示值\t999\n第二行\t888')
+  effectHint.value = '已向当前选中单元格粘贴 2x2 示例数据'
+}
+
+const invertSelection = () => {
+  tableRef.value?.invertSelection?.()
+}
+
+const handleResetColumnOrder = () => {
+  const reset = buildTableColumns()
+  tableColumnsState.value = reset
+  tableRef.value?.setColumns?.(reset)
+}
+
+const saveColumnsLayout = () => {
+  tableRef.value?.saveColumnState?.()
+}
+
+const restoreColumnsLayout = () => {
+  tableRef.value?.loadColumnState?.()
+}
+
+const clearColumnsLayout = () => {
+  tableRef.value?.clearColumnState?.()
+}
+
+const expandAllTree = () => {
+  tableRef.value?.expandAllTree?.()
+}
+
+const collapseAllTree = () => {
+  tableRef.value?.collapseAllTree?.()
+}
+
+const toTreeData = (source: DemoTableRow[]): DemoTableRow[] => {
+  const groups = new Map<string, DemoTableRow[]>()
+  source.forEach(row => {
+    const key = String(row.role || '未分组')
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(row)
+  })
+  const roots: DemoTableRow[] = []
+  let index = 0
+  groups.forEach((rows, role) => {
+    index += 1
+    const root: any = {
+      id: `group-${index}`,
+      __index__: index,
+      name: `${role}（${rows.length}）`,
+      age: '',
+      address: '',
+      email: '',
+      role,
+      status: '分组',
+      children: rows
+    }
+    roots.push(root)
+  })
+  return roots
+}
+
+const expandedRowRender = (record: DemoTableRow) => {
+  return `ID: ${record.id} | 姓名: ${record.name} | 邮箱: ${record.email} | 地址: ${record.address}`
+}
+
 const buildColumns = (count: number): Column[] => {
   const cols: Column[] = []
+  const toSafeNumericId = (raw: unknown): number => {
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+    const text = String(raw ?? '')
+    const digits = text.match(/\d+/g)?.join('') ?? ''
+    const parsed = Number.parseInt(digits || '0', 10)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
   for (let i = 0; i < count; i += 1) {
     if (i < performanceColumnTemplates.length) {
       const tpl = performanceColumnTemplates[i]
       cols.push({
         ...tpl,
-        key: `${tpl.key}__${i + 1}`
+        key: `${tpl.key}__${i + 1}`,
+        draggable: columnDraggable.value,
+        hidden:
+          ['id', 'name', 'age', 'address', 'email', 'role', 'status'].includes(tpl.key)
+            ? !visibleColumnKeys.value.includes(tpl.key)
+            : false
       })
       continue
     }
@@ -373,8 +784,12 @@ const buildColumns = (count: number): Column[] => {
       width: 110,
       align: 'right',
       sortable: true,
+      draggable: columnDraggable.value,
       render: (record: any) => {
-        const id = Number(record?.id ?? 0)
+        if (Array.isArray(record?.children) && record.children.length > 0) {
+          return '--'
+        }
+        const id = toSafeNumericId(record?.id)
         const value = (id * (metricIndex * 13 + 7)) % 100000
         return value.toLocaleString()
       }
@@ -383,8 +798,36 @@ const buildColumns = (count: number): Column[] => {
   return cols
 }
 
-const tableColumns = computed<Column[]>(() => {
-  const cols: Column[] = buildColumns(columnCount.value)
+const applyGroupedHeader = (columns: Column[]): Column[] => {
+  if (!groupedHeader.value) return columns
+  const leftFixed = columns.filter(col => col.fixed === 'left')
+  const rightFixed = columns.filter(col => col.fixed === 'right')
+  const normal = columns.filter(col => !col.fixed)
+  const infoColumns = normal.slice(0, Math.min(5, normal.length))
+  const metricColumns = normal.slice(infoColumns.length)
+
+  return [
+    ...leftFixed,
+    {
+      key: 'group_info',
+      title: '基础信息',
+      draggable: columnDraggable.value,
+      children: infoColumns
+    },
+    ...(metricColumns.length > 0
+      ? [{
+          key: 'group_metrics',
+          title: '性能指标',
+          draggable: columnDraggable.value,
+          children: metricColumns
+        } as Column]
+      : []),
+    ...rightFixed
+  ]
+}
+
+const buildTableColumns = (): Column[] => {
+  let cols: Column[] = buildColumns(columnCount.value)
 
   if (cols.length > 0) {
     cols[cols.length - 1] = {
@@ -397,7 +840,46 @@ const tableColumns = computed<Column[]>(() => {
     cols.unshift({ key: '__checkbox__', title: '', width: 52, align: 'center', fixed: 'left' })
   }
 
+  cols = applyGroupedHeader(cols)
   return cols
+}
+
+const mergeCellsConfig = computed(() => {
+  if (!mergeDemoEnabled.value || treeMode.value || expandableRows.value) return []
+  return [
+    {
+      rowIndex: 0,
+      colIndex: 1,
+      rowSpan: 2,
+      colSpan: 1,
+      text: '合并演示'
+    }
+  ]
+})
+
+const tableColumnsState = ref<Column[]>(buildTableColumns())
+
+const columnDragConfig = computed<ColumnDragConfig>(() => ({
+  enabled: columnDraggable.value,
+  showGuidesStatus: showDragGuides.value,
+  isCrossDrag: allowCrossGroupDrag.value,
+  disabledMethod: ({ column }) => column.key.startsWith('__'),
+  dragStartMethod: ({ column }) => !column.key.startsWith('__')
+}))
+
+const contextMenuConfig = computed(() => {
+  if (!contextMenuEnabled.value) return false
+  return {
+    items: [
+      { key: 'copy-json', label: '复制行数据', icon: '📋', shortcut: '⌘C' },
+      { key: 'mark-leave', label: '标记为离职', icon: '⛔', danger: true, divided: true }
+    ],
+    onClick: (item: any, ctx: { row: any; index: number }) => {
+      if (item.key === 'mark-leave') {
+        tableRef.value?.updateRow?.((row: any, index: number) => index === ctx.index, { status: '离职' })
+      }
+    }
+  }
 })
 
 // 主题配置
@@ -419,7 +901,7 @@ const loadData = async (count: number) => {
       ...item,
       __index__: index + 1
     }))
-    data.value = rawData.value
+    data.value = treeMode.value ? toTreeData(rawData.value) : rawData.value
     paginationCurrent.value = 1
     selectedRows.value = []
     selectedRowKeys.value = []
@@ -442,16 +924,68 @@ const switchColumnCount = (count: number) => {
 // 事件处理
 const handleCellClick = (cell: any, row: any, column: any) => {
   console.log('Cell clicked:', cell, row, column)
+  effectHint.value = `当前单元格：${column?.title || column?.key || '未知列'}`
 }
 
 const handleRowClick = (row: any, index: number) => {
   console.log('Row clicked:', row, index)
 }
 
+const handleRowContextmenu = (row: any, index: number, event: any) => {
+  event?.preventDefault?.()
+  event?.nativeEvent?.preventDefault?.()
+  console.log('Row contextmenu:', row, index, event)
+}
+
 const handleSelectionChange = (rows: any[], keys: any[]) => {
   selectedRows.value = rows
   selectedRowKeys.value = keys
   console.log('Selection changed:', rows, keys)
+}
+
+const handleColumnDragStart = (payload: any) => {
+  console.log('Column drag start:', payload)
+}
+
+const handleColumnDragEnd = (payload: any) => {
+  console.log('Column drag end:', payload)
+}
+
+const handleColumnsChange = (columns: Column[]) => {
+  tableColumnsState.value = columns
+  console.log('Columns changed:', columns)
+}
+
+const handleContextMenuClick = (item: any, row: any, index: number) => {
+  console.log('Context menu click:', item, row, index)
+  effectHint.value = `右键菜单：${item?.label || item?.key}`
+}
+
+const handleCellEditStart = (payload: any) => {
+  effectHint.value = `开始编辑：${payload?.field || ''}`
+}
+
+const handleCellEditEnd = (payload: any) => {
+  effectHint.value = `编辑完成：${payload?.field || ''} = ${payload?.nextValue ?? ''}`
+}
+
+const handleCellValidateError = (payload: any) => {
+  effectHint.value = `校验失败：${payload?.message || '未知错误'}`
+}
+
+const handleRowEditStart = (payload: any) => {
+  rowEditing.value = true
+  effectHint.value = `整行编辑开始：rowKey=${payload?.rowKey ?? ''}`
+}
+
+const handleRowEditSave = (payload: any) => {
+  rowEditing.value = false
+  effectHint.value = `整行编辑保存：变更字段 ${payload?.changedFields?.join(', ') || '无'}`
+}
+
+const handleRowEditCancel = () => {
+  rowEditing.value = false
+  effectHint.value = '整行编辑已取消'
 }
 
 const handleSortRequest = async (sorter: any) => {
@@ -515,6 +1049,50 @@ const applyRemoteQuery = (
 
   return result
 }
+
+watch(
+  () => [
+    columnCount.value,
+    selectable.value,
+    columnDraggable.value,
+    groupedHeader.value,
+    visibleColumnKeys.value.join('|')
+  ],
+  () => {
+    tableColumnsState.value = buildTableColumns()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => treeMode.value,
+  enabled => {
+    rowEditing.value = false
+    data.value = enabled ? toTreeData(rawData.value) : rawData.value
+  }
+)
+
+watch(
+  () => editMode.value,
+  mode => {
+    if (mode !== 'row') {
+      rowEditing.value = false
+    }
+  }
+)
+
+watch(
+  () => editable.value,
+  enabled => {
+    if (enabled) {
+      effectHint.value = '已开启可编辑：可切换单元格/整行模式'
+      return
+    }
+    rowEditing.value = false
+    effectHint.value = '已关闭可编辑'
+  },
+  { immediate: true }
+)
 
 // 初始化加载数据
 loadData(10000)
@@ -612,6 +1190,7 @@ loadData(10000)
 .control-section-wrapper {
   display: flex;
   width: 100%;
+  flex-shrink: 0;
 }
 
 /* ========== 控制卡片 ========== */
@@ -737,6 +1316,8 @@ loadData(10000)
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-height: min(34vh, 280px);
+  overflow: auto;
 }
 
 .control-tabs {
@@ -883,7 +1464,7 @@ loadData(10000)
 .table-area {
   display: flex;
   flex-direction: column;
-  min-height: 520px;
+  min-height: 420px;
   min-width: 0;
 }
 
@@ -901,7 +1482,34 @@ loadData(10000)
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 520px;
+  min-height: 420px;
+}
+
+.panel-toggle-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid #d6e3f6;
+  border-radius: 8px;
+  background: #fff;
+  color: #1677ff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.panel-toggle-btn:hover {
+  background: #eaf3ff;
+}
+
+.file-btn-inline {
+  position: relative;
+  overflow: hidden;
+}
+
+.file-btn-inline input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .table-card .card-header {
@@ -966,6 +1574,37 @@ loadData(10000)
   height: 100%;
 }
 
+.demo-summary {
+  padding: 8px 14px;
+  border-top: 1px solid #e9edf3;
+  background: #fbfcff;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.effect-hint {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px dashed #c9d7f7;
+  border-radius: 8px;
+  background: #f7faff;
+  color: #1d3a8a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.effect-hint-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #5b74b3;
+}
+
+.btn-group-inline .data-btn-inline:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ========== 响应式 ========== */
 @media (max-width: 1200px) {
   .header-content {
@@ -984,7 +1623,7 @@ loadData(10000)
   }
 
   .table-area {
-    min-height: 460px;
+    min-height: 360px;
   }
 }
 
@@ -1016,7 +1655,7 @@ loadData(10000)
   }
 
   .table-area {
-    min-height: 400px;
+    min-height: 320px;
   }
 }
 </style>

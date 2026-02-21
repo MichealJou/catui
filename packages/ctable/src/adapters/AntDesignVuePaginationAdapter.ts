@@ -5,57 +5,39 @@
  * 此适配器会动态检测 ant-design-vue 是否可用
  */
 
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, shallowRef } from 'vue'
 import type {
   PaginationAdapter,
   PaginationConfig,
   PaginationEmits,
   PaginationSlots
 } from './types'
+import CPagination from '../components/CPagination.vue'
 
 // 动态导入 ant-design-vue（不打包）
 let AntDesignVuePagination: any = null
-let isAvailableChecked = false
+let loadingPromise: Promise<any> | null = null
 
 /**
  * 检查 ant-design-vue 是否可用
  */
 function checkAntDesignVueAvailable(): boolean {
-  if (isAvailableChecked) {
-    return AntDesignVuePagination !== null
-  }
+  return true
+}
 
-  isAvailableChecked = true
-
-  try {
-    // 尝试动态导入
-    // 注意：这里使用 require 为了运行时检测
-    // 在打包环境中，这个依赖不会被打包
-    try {
-      // @ts-ignore - 动态导入
-      const module = require('ant-design-vue')
-      AntDesignVuePagination = module.Pagination
-      return true
-    } catch {
-      // ES Module 环境
-      // @ts-ignore
-      if (window && window.antDesignVue) {
-        // @ts-ignore
-        AntDesignVuePagination = window.antDesignVue.Pagination
-        return true
-      }
-    }
-
-    console.warn(
-      '[CTable] ant-design-vue not found. Using default pagination component.'
-    )
-    console.warn(
-      '[CTable] To use ant-design-vue pagination, install it: npm install ant-design-vue'
-    )
-    return false
-  } catch {
-    return false
-  }
+function loadAntPagination() {
+  if (AntDesignVuePagination) return Promise.resolve(AntDesignVuePagination)
+  if (loadingPromise) return loadingPromise
+  loadingPromise = import('ant-design-vue')
+    .then((mod: any) => {
+      AntDesignVuePagination = mod?.Pagination ?? null
+      return AntDesignVuePagination
+    })
+    .catch(() => null)
+    .finally(() => {
+      loadingPromise = null
+    })
+  return loadingPromise
 }
 
 /**
@@ -74,55 +56,17 @@ export const AntDesignVuePaginationAdapter: PaginationAdapter = {
     emits: PaginationEmits,
     slots?: PaginationSlots
   ) {
-    // 如果 ant-design-vue 不可用，返回错误提示
-    if (!this.isAvailable()) {
-      console.error(
-        '[CTable] ant-design-vue is not installed. Cannot use AntDesignVuePaginationAdapter.'
-      )
-      // 返回一个占位组件
-      return defineComponent({
-        name: 'AntDesignVuePaginationFallback',
-        setup() {
-          return () =>
-            h(
-              'div',
-              {
-                style: {
-                  color: 'red',
-                  padding: '20px',
-                  border: '1px solid red',
-                  borderRadius: '4px'
-                }
-              },
-              [
-                h(
-                  'div',
-                  { style: { fontWeight: 'bold', marginBottom: '8px' } },
-                  'Error: ant-design-vue not installed'
-                ),
-                h('div', 'To use ant-design-vue pagination, please install:'),
-                h(
-                  'code',
-                  {
-                    style: {
-                      display: 'block',
-                      marginTop: '8px',
-                      padding: '8px',
-                      background: '#f5f5f5'
-                    }
-                  },
-                  'npm install ant-design-vue'
-                )
-              ]
-            )
-        }
-      })
-    }
-
     // 创建包装组件，将插槽映射到 ant-design-vue 的插槽
     return defineComponent({
       name: 'AntDesignVuePaginationWrapper',
       setup(props, { expose }) {
+        const compRef = shallowRef<any>(AntDesignVuePagination)
+        if (!compRef.value) {
+          loadAntPagination().then(comp => {
+            if (comp) compRef.value = comp
+          })
+        }
+
         const handleChange = (page: number, pageSize: number) => {
           emits.change(page, pageSize)
         }
@@ -204,7 +148,15 @@ export const AntDesignVuePaginationAdapter: PaginationAdapter = {
             }
           }
 
-          return h(AntDesignVuePagination, paginationProps, slotMappings)
+          if (!compRef.value) {
+            return h(CPagination as any, {
+              ...config,
+              onChange: handleChange,
+              onShowSizeChange: handleShowSizeChange,
+              themePreset: 'ant-design'
+            })
+          }
+          return h(compRef.value, paginationProps, slotMappings)
         }
       }
     })

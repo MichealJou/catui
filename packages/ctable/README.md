@@ -7,6 +7,7 @@
 - 🚀 **百万级数据渲染** - 基于 VTable 虚拟滚动引擎
 - ⚡ **高度可配置** - 完整的行列配置
 - 🎨 **多主题支持** - Ant Design Vue / Element Plus / Naive UI
+- 🧩 **三框架分页适配** - Pagination 自动适配 Ant / Element / Naive（失败自动回退内置）
 - 📌 **斑马线** - 可配置的交替行背景色
 - 🎯 **智能更新** - 浅层比较，避免不必要的渲染
 
@@ -42,6 +43,70 @@
 | 斑马线 | 交替行背景色，可配置颜色 |
 | 主题切换 | 6 种预设主题 + 自定义主题 |
 | 分页集成 | 内置分页组件，支持完整配置 |
+| 编辑能力 | 支持单元格编辑与行编辑（click/dblclick/enter/manual） |
+| 键盘与剪贴板 | 支持方向键导航、Enter 编辑、Ctrl/Cmd+C/V |
+| 合并单元格 | 支持 `mergeCells` 与列级 `rowSpan/colSpan` 基础能力 |
+
+### 编辑器规范（含时间适配）
+
+`Column.editor` 支持以下写法：
+
+- 内置类型：`'input' | 'password' | 'textarea' | 'number' | 'select' | 'radio' | 'checkbox' | 'switch' | 'date' | 'time' | 'datetime'`
+- 组件直传：`editor: MyEditorComponent`
+- 配置对象：
+
+```ts
+editor: {
+  type: 'input', // 可选，默认 input
+  component: MyEditorComponent,
+  props: { clearable: true } // 或 (ctx) => ({ ... })
+}
+```
+
+`editorOptions` 统一规范：
+
+```ts
+editorOptions: {
+  placeholder?: string
+  options?: Array<{ label: string; value: any }> // select 使用
+  dataSource?: Array<any> | ((ctx) => Array<any> | Promise<Array<any>>) // 下拉/单选数据源
+  fieldNames?: { label?: string; value?: string } // 数据源字段映射
+  format?: string
+  valueFormat?: string
+  props?: Record<string, any>
+  formatValue?: (value, ctx) => any // 行数据 -> 编辑器值
+  parse?: (value, ctx) => any       // 编辑器值 -> 行数据
+}
+```
+
+三大 UI 时间组件适配：
+
+- Ant Design Vue
+  - `date` -> `DatePicker`
+  - `time` -> `TimePicker`
+  - `datetime` -> `DatePicker(showTime)`
+- Element Plus
+  - `date` -> `ElDatePicker(type='date')`
+  - `time` -> `ElTimePicker`
+  - `datetime` -> `ElDatePicker(type='datetime')`
+- Naive UI
+  - `date` -> `NDatePicker(type='date')`
+  - `time` -> `NTimePicker`
+  - `datetime` -> `NDatePicker(type='datetime')`
+
+自定义输入组件约定：
+
+- 组件可接收 `value` / `modelValue`，并通过以下任一事件回传值：
+  - `update:value`
+  - `update:modelValue`
+  - `change`
+- 会额外透传上下文属性：`record`、`column`、`field`
+
+下拉/单选数据源适配说明：
+
+- `options` 与 `dataSource` 都支持，优先使用 `options`
+- `dataSource` 支持同步数组或异步 Promise
+- 数据项支持任意结构，配合 `fieldNames` 映射为 `{ label, value }`
 
 ## 📖 API 参考
 
@@ -49,14 +114,16 @@
 
 ```vue
 <template>
-  <CTable
-    :columns="columns"
-    :data="data"
-    :row-key="'id'"
-    :stripe="true"
-    stripe-color="#f0f0f0"
-    @row-click="handleRowClick"
-  />
+<CTable
+  :columns="columns"
+  :data="data"
+  header-align="center"
+  default-align="center"
+  :row-key="'id'"
+  :stripe="true"
+  stripe-color="#f0f0f0"
+  @row-click="handleRowClick"
+/>
 </template>
 ```
 
@@ -68,6 +135,7 @@ const columns: Column[] = [
     key: 'name',
     title: '姓名',
     width: 200,
+    hidden: false,
     fixed: 'left',
     sortable: true,
     filterable: true,
@@ -82,6 +150,20 @@ const columns: Column[] = [
     resizable: true
   }
 ]
+```
+
+对齐规则：
+
+- 表头默认居中：`headerAlign='center'`
+- 数据列默认居中：`defaultAlign='center'`
+- 单列可通过 `column.align` 和 `column.headerAlign` 覆盖（`left | center | right`）
+
+可通过 `hidden` 动态控制列显隐（配合响应式列配置）：
+
+```ts
+columns.value = columns.value.map(col =>
+  col.key === 'email' ? { ...col, hidden: true } : col
+)
 ```
 
 ### 排序模式（本地 / 远程）
@@ -156,15 +238,52 @@ const localSorter = (a: any, b: any, column: Column, order: 'asc' | 'desc' | nul
 ```
 
 ```ts
-const handleSortRequest = async (sorter: SorterConfig) => {
+const handleSortRequest = async (sorter: SorterConfig, sorters?: SorterConfig[]) => {
   // 根据 sorter.field / sorter.order 请求后端，然后回写 data
   // sorter.order: 'asc' | 'desc' | null
+  // sorters: 多列排序状态（有 multiple 时）
   const res = await fetchUsers({ sortField: sorter.field, sortOrder: sorter.order })
   data.value = res.list
 }
 ```
 
 > 说明：当 `sortMode='remote'` 时，组件不会做本地排序；由业务层控制数据更新。
+
+#### 5) 多列排序（multiple 优先级）
+
+`multiple` 数值越大，优先级越高。
+
+```ts
+const columns: Column[] = [
+  {
+    key: 'role',
+    title: '角色',
+    dataIndex: 'role',
+    sorter: { sorter: (a, b) => String(a.role).localeCompare(String(b.role)), multiple: 20 },
+    sortOrder: 'asc'
+  },
+  {
+    key: 'age',
+    title: '年龄',
+    dataIndex: 'age',
+    sorter: { sorter: (a, b) => a.age - b.age, multiple: 10 },
+    sortOrder: 'desc'
+  }
+]
+```
+
+也可通过 `sortConfig` 统一受控：
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  :sort-config="[
+    { field: 'role', order: 'asc', multiple: 20 },
+    { field: 'age', order: 'desc', multiple: 10 }
+  ]"
+/>
+```
 
 ### 列筛选
 
@@ -237,6 +356,30 @@ const handleFilterRequest = async (filters: Record<string, any[]>) => {
 const handleTableChange = (pagination, filters, sorter) => {
   // filters 结构：{ role: ['管理员'], status: ['在职'] }
   console.log(filters)
+}
+```
+
+### 统一远程查询管线（排序/筛选/分页）
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  sort-mode="remote"
+  filter-mode="remote"
+  pagination-mode="remote"
+  :on-query-request="handleQueryRequest"
+/>
+```
+
+```ts
+const handleQueryRequest = async ({ pagination, filters, sorter, sorters }) => {
+  // 统一请求参数：分页 + 筛选 + 排序
+  // pagination: { current, pageSize, total? }
+  // sorter: 当前主排序
+  // sorters: 多列排序状态
+  const res = await fetchUsers({ pagination, filters, sorter, sorters })
+  data.value = res.list
 }
 ```
 
@@ -474,6 +617,265 @@ pnpm build:demo
    vtableAdapter.destroy()
    vtableAdapter.create()
    ```
+
+### 列拖拽（基础）
+
+设置列 `draggable: true` 后，可拖拽调整列顺序：
+
+```ts
+const columns: Column[] = [
+  { key: 'id', title: 'ID', dataIndex: 'id', draggable: true },
+  { key: 'name', title: '姓名', dataIndex: 'name', draggable: true }
+]
+```
+
+### 列拖拽（分组/跨组）
+
+```ts
+const columns: Column[] = [
+  {
+    key: 'group_info',
+    title: '基础信息',
+    children: [
+      { key: 'id', title: 'ID', dataIndex: 'id', draggable: true },
+      { key: 'name', title: '姓名', dataIndex: 'name', draggable: true }
+    ]
+  },
+  {
+    key: 'group_metrics',
+    title: '指标',
+    children: [
+      { key: 'score', title: '分数', dataIndex: 'score', draggable: true }
+    ]
+  }
+]
+```
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  :column-drag-config="{
+    enabled: true,
+    isCrossDrag: true,
+    showGuidesStatus: true
+  }"
+  @columns-change="handleColumnsChange"
+/>
+```
+
+```ts
+const handleColumnsChange = (nextColumns: Column[]) => {
+  columns.value = nextColumns
+}
+```
+
+### 实例方法：CSV 导出
+
+```vue
+<CTable ref="tableRef" :columns="columns" :data="data" />
+```
+
+```ts
+const tableRef = ref<any>()
+tableRef.value?.exportCsv?.('users.csv')
+```
+
+### 实例方法：Excel 导出
+
+```ts
+const tableRef = ref<any>()
+tableRef.value?.exportExcel?.('users.xlsx', 'Users')
+```
+
+### 实例方法：CSV/XLSX 导入
+
+```ts
+const tableRef = ref<any>()
+
+// 导入 CSV 文本
+const csvRows = tableRef.value?.importCsvText?.('id,name\n1,Alice', {
+  hasHeader: true,
+  mode: 'replace'
+})
+
+// 导入文件（File 对象）
+const fileRows = await tableRef.value?.importFile?.(file, {
+  mode: 'append',
+  sheetName: 'Sheet1'
+})
+```
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  :on-import-data="(rows, meta) => {
+    console.log(meta.source, rows.length)
+  }"
+/>
+```
+
+### 实例方法：打印
+
+```ts
+const tableRef = ref<any>()
+tableRef.value?.printTable?.('用户列表打印')
+```
+
+### 实例方法：增量数据更新
+
+```ts
+const tableRef = ref<any>()
+
+// 追加
+tableRef.value?.appendRows?.([{ id: 10001, name: '新用户' }])
+
+// 更新（按 id/key 或函数）
+tableRef.value?.updateRow?.(10001, { status: '在职' })
+tableRef.value?.updateRow?.((row: any) => row.role === '访客', (row: any) => ({ ...row, status: '离职' }))
+
+// 删除（按 id/key、数组或函数）
+tableRef.value?.removeRows?.(10001)
+tableRef.value?.removeRows?.([10002, 10003])
+tableRef.value?.removeRows?.((row: any) => row.status === '离职')
+```
+
+### 右键菜单（基础）
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  :context-menu="{
+    items: [
+      { key: 'copy-json', label: '复制行数据' },
+      { key: 'mark-leave', label: '标记为离职' }
+    ],
+    onClick: (item, ctx) => {
+      console.log(item, ctx.row)
+    }
+  }"
+  @context-menu-click="handleContextMenuClick"
+/>
+```
+
+### 实例方法：列结构管理
+
+```ts
+const tableRef = ref<any>()
+
+// 获取当前列结构（含拖拽结果）
+const cols = tableRef.value?.getColumns?.()
+
+// 重置为最近一次外部传入的 columns
+tableRef.value?.resetColumns?.()
+
+// 程序化设置列结构
+tableRef.value?.setColumns?.(nextColumns)
+```
+
+### 列状态持久化（顺序/显隐）
+
+```vue
+<CTable
+  ref="tableRef"
+  :columns="columns"
+  :data="data"
+  :column-state-persistence="{
+    key: 'my-table-column-state',
+    autoLoad: true,
+    autoSave: true
+  }"
+/>
+```
+
+```ts
+// 手动控制
+tableRef.value?.saveColumnState?.()
+tableRef.value?.loadColumnState?.()
+tableRef.value?.clearColumnState?.()
+```
+
+### 实例方法：选择管理
+
+```ts
+const tableRef = ref<any>()
+
+// 清空选择
+tableRef.value?.clearSelection?.()
+
+// 反选当前数据集（含分页/筛选后的当前数据源）
+tableRef.value?.invertSelection?.()
+```
+
+### 插槽：页头 / 合计 / 页尾
+
+```vue
+<CTable :columns="columns" :data="data">
+  <template #header>
+    <div style="padding: 8px 12px; font-weight: 600">自定义页头</div>
+  </template>
+  <template #summary="{ data: source }">
+    <div style="padding: 8px 12px">合计行：{{ source.length }} 条</div>
+  </template>
+  <template #footer>
+    <div style="padding: 8px 12px; color: #667085">自定义页尾</div>
+  </template>
+</CTable>
+```
+
+### i18n（基础文案）
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  locale="en-US"
+  :i18n="{
+    filterSearch: 'Apply',
+    contextCopyJson: 'Copy JSON'
+  }"
+/>
+```
+
+### 统一远程请求代理（requestProxy）
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  sort-mode="remote"
+  filter-mode="remote"
+  pagination-mode="remote"
+  :on-query-request="queryUsers"
+  :request-proxy="{
+    beforeRequest: (query) => ({ ...query, ts: Date.now() }),
+    afterRequest: (query) => console.log('done', query),
+    onError: (error, query) => console.error('query failed', error, query)
+  }"
+/>
+```
+
+### 尺寸与行样式
+
+```vue
+<CTable
+  :columns="columns"
+  :data="data"
+  size="small"
+  :row-style="rowStyle"
+/>
+```
+
+```ts
+const rowStyle = (record: any, index: number) => {
+  if (index % 10 === 0) {
+    return { fontWeight: 600, color: '#0f172a' }
+  }
+  return {}
+}
+```
 
 ## 🐛 调试
 

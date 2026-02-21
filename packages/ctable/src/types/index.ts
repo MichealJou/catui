@@ -45,6 +45,82 @@ export interface FilterDropdownProps {
   filteredValue?: any[]
 }
 
+export interface MergeRange {
+  start: { row: number; col: number }
+  end: { row: number; col: number }
+}
+
+export interface MergeCellResult {
+  rowSpan?: number
+  colSpan?: number
+  text?: string
+  style?: Record<string, any>
+}
+
+export interface CellEditContext {
+  row: any
+  index: number
+  column: Column
+  field: string
+  value: any
+}
+
+export type EditorType =
+  | 'input'
+  | 'password'
+  | 'textarea'
+  | 'number'
+  | 'select'
+  | 'radio'
+  | 'checkbox'
+  | 'switch'
+  | 'date'
+  | 'time'
+  | 'datetime'
+
+export interface ColumnEditorConfig {
+  type?: EditorType
+  component: any
+  props?: Record<string, any> | ((ctx: CellEditContext) => Record<string, any>)
+}
+
+export interface EditorOptionItem {
+  label?: string
+  value?: any
+  [key: string]: any
+}
+
+export interface RowEditContext {
+  row: any
+  index: number
+  rowKey: any
+  draftRow: any
+  originalRow: any
+  changedFields: string[]
+}
+
+export interface ContextMenuItem {
+  key: string
+  label: string
+  icon?: string
+  shortcut?: string
+  danger?: boolean
+  divided?: boolean
+  disabled?: boolean | ((ctx: { row: any; index: number }) => boolean)
+}
+
+export type CTableLocale = 'zh-CN' | 'en-US'
+
+export interface CTableLocalePack {
+  loadingTip: string
+  filterTab: string
+  columnTab: string
+  filterPlaceholder: string
+  filterSearch: string
+  filterReset: string
+  contextCopyJson: string
+}
+
 // ============================================================================
 // 排序相关类型
 // ============================================================================
@@ -53,10 +129,19 @@ export interface SorterConfig {
   field: string
   order: SortOrder
   sorter?: (a: any, b: any) => number
+  multiple?: number
 }
 
 export type SortMode = 'local' | 'remote'
 export type FilterMode = 'local' | 'remote'
+export type PaginationMode = 'local' | 'remote'
+
+export interface QueryRequestPayload {
+  pagination: { current: number; pageSize: number; total?: number }
+  filters: Record<string, any[]>
+  sorter: SorterConfig | null
+  sorters: SorterConfig[]
+}
 
 export interface SorterOptions {
   compare?: (a: any, b: any) => number
@@ -117,9 +202,11 @@ export interface Column {
   width?: number | string
   minWidth?: number
   maxWidth?: number
+  hidden?: boolean
 
   // === 对齐方式 ===
   align?: 'left' | 'center' | 'right'
+  headerAlign?: 'left' | 'center' | 'right'
 
   // === 固定列 ===
   fixed?: 'left' | 'right'
@@ -145,7 +232,24 @@ export interface Column {
 
   // === 编辑 ===
   editable?: boolean
-  editor?: 'input' | 'select' | 'date' | any
+  validator?: (value: any, record: any, index: number) => true | string
+  editorOptions?: {
+    options?: EditorOptionItem[]
+    dataSource?:
+      | EditorOptionItem[]
+      | ((ctx: CellEditContext) => EditorOptionItem[] | Promise<EditorOptionItem[]>)
+    placeholder?: string
+    format?: string
+    valueFormat?: string
+    fieldNames?: {
+      label?: string
+      value?: string
+    }
+    props?: Record<string, any>
+    parse?: (value: any, ctx: CellEditContext) => any
+    formatValue?: (value: any, ctx: CellEditContext) => any
+  }
+  editor?: EditorType | ColumnEditorConfig | any
 
   // === 响应式 ===
   responsive?: ['xs' | 'sm' | 'md' | 'lg' | 'xl']
@@ -156,6 +260,9 @@ export interface Column {
 
   // === CTable 特有属性 ===
   render?: (data: any, row: number, column: Column) => any
+  rowSpan?: number | ((ctx: CellEditContext) => number)
+  colSpan?: number | ((ctx: CellEditContext) => number)
+  mergeCell?: boolean
   children?: Column[] // 嵌套列
 }
 
@@ -237,6 +344,8 @@ export interface CTableProps {
   showHeader?: boolean
   size?: 'large' | 'middle' | 'small'
   tableLayout?: 'auto' | 'fixed'
+  headerAlign?: 'left' | 'center' | 'right'
+  defaultAlign?: 'left' | 'center' | 'right'
 
   // === 尺寸属性 ===
   width?: number
@@ -276,6 +385,7 @@ export interface CTableProps {
   onChange?: (pagination: any, filters: any, sorter: any) => void
   sortMode?: SortMode
   filterMode?: FilterMode
+  paginationMode?: PaginationMode
   /**
    * 本地排序时的全局兜底排序器（当列未提供 sorter 函数时生效）
    */
@@ -283,14 +393,69 @@ export interface CTableProps {
   /**
    * 远程排序回调：由业务层请求服务端并更新 data
    */
-  onSortRequest?: (sorter: SorterConfig) => void | Promise<void>
+  onSortRequest?: (sorter: SorterConfig, sorters?: SorterConfig[]) => void | Promise<void>
   /**
    * 远程筛选回调：由业务层请求服务端并更新 data
    */
   onFilterRequest?: (filters: Record<string, any[]>) => void | Promise<void>
+  /**
+   * 统一远程查询回调（排序/筛选/分页）
+   */
+  onQueryRequest?: (query: QueryRequestPayload) => void | Promise<void>
+  requestProxy?: {
+    beforeRequest?: (query: QueryRequestPayload) => QueryRequestPayload | Promise<QueryRequestPayload>
+    afterRequest?: (query: QueryRequestPayload, result?: unknown) => void | Promise<void>
+    onError?: (error: unknown, query: QueryRequestPayload) => void
+  }
+  onImportData?: (rows: any[], meta: { source: 'csv' | 'xlsx'; mode: 'replace' | 'append' }) => void
+  onDataChange?: (rows: any[], reason?: string) => void
+  editable?: boolean
+  editMode?: 'cell' | 'row'
+  editTrigger?: 'click' | 'dblclick' | 'enter' | 'manual'
+  keyboardNavigation?: boolean
+  clipboard?: boolean
+  /**
+   * 单元格选中样式（包含悬停高亮）
+   * 默认:
+   * - borderColor: 跟随主题主色（ant: #1677ff / element: #409eff / naive: #18a058）
+   * - borderWidth: 1
+   * - backgroundColor: 跟随主题 selectColor
+   */
+  selectionStyle?: {
+    borderColor?: string
+    borderWidth?: number
+    backgroundColor?: string
+    hoverBackgroundColor?: string
+  }
+  /**
+   * 排序时是否启用过渡动画
+   */
+  sortTransition?: boolean
+  /**
+   * 排序过渡动画时长（ms）
+   */
+  sortTransitionDuration?: number
+  mergeCells?: Array<{
+    rowIndex: number
+    colIndex: number
+    rowSpan?: number
+    colSpan?: number
+    text?: string
+    style?: Record<string, any>
+  }>
 
   // === CTable 特有属性 ===
   theme?: ThemePreset | ThemeConfig
+  locale?: CTableLocale
+  i18n?: Partial<CTableLocalePack>
+  /**
+   * 行样式回调（仅支持 VTable style 能力覆盖）
+   */
+  rowStyle?: (record: any, index: number) => Partial<{
+    bgColor: string
+    color: string
+    fontWeight: string | number
+  }>
   virtualScroll?: boolean
   renderer?: 'g2' | 'canvas'
   resizable?: boolean | ResizeConfig
@@ -302,7 +467,39 @@ export interface CTableProps {
     field: string
     order: SortOrder
     sorter?: (a: any, b: any) => number
+    multiple?: number
   }>
+  columnDragConfig?: ColumnDragConfig
+  onColumnDragStart?: (payload: {
+    source: { col: number; row: number; field: string }
+    movingColumnOrRow?: 'column' | 'row'
+    event?: Event
+    column?: Column
+  }) => void
+  onColumnDragEnd?: (payload: {
+    source: { col: number; row: number; field: string }
+    target: { col: number; row: number; field: string }
+    movingColumnOrRow?: 'column' | 'row'
+    event?: Event
+    oldColumn?: Column
+    newColumn?: Column
+  }) => void
+  onColumnsChange?: (columns: Column[]) => void
+  contextMenu?: boolean | {
+    items?: ContextMenuItem[]
+    onClick?: (item: ContextMenuItem, ctx: { row: any; index: number }) => void
+  }
+  /**
+   * 列状态持久化
+   * true: 使用默认 key（基于路由路径）
+   * string: 作为持久化 key
+   * object: 细粒度配置
+   */
+  columnStatePersistence?: boolean | string | {
+    key?: string
+    autoLoad?: boolean
+    autoSave?: boolean
+  }
 
   // === 组件适配器配置 ===
   /**
@@ -361,6 +558,17 @@ export interface CTableEvents {
   // === 列宽调整事件 ===
   'column-resize': [info: ColumnResizeInfo]
   'column-resize-end': [info: ColumnResizeInfo]
+  'column-drag-start': [payload: any]
+  'column-drag-end': [payload: any]
+  'columns-change': [columns: Column[]]
+  'context-menu-click': [item: ContextMenuItem, row: any, index: number]
+  'data-change': [rows: any[], reason?: string]
+  'cell-edit-start': [payload: CellEditContext]
+  'cell-edit-end': [payload: CellEditContext & { nextValue: any }]
+  'cell-validate-error': [payload: CellEditContext & { message: string }]
+  'row-edit-start': [payload: RowEditContext]
+  'row-edit-save': [payload: RowEditContext]
+  'row-edit-cancel': [payload: RowEditContext]
 
   // === 滚动事件 ===
   scroll: [event: { scrollTop: number; scrollLeft: number }]
@@ -437,4 +645,21 @@ export interface ColumnResizeEndInfo extends ColumnResizeInfo {
     key: string
     width: number
   }>
+}
+
+export interface ColumnDragConfig {
+  enabled?: boolean
+  trigger?: 'icon' | 'cell' | 'header'
+  icon?: string | object
+  showGuidesStatus?: boolean
+  isCrossDrag?: boolean
+  visibleMethod?: (ctx: { column: Column }) => boolean
+  disabledMethod?: (ctx: { column: Column }) => boolean
+  dragStartMethod?: (ctx: { column: Column }) => boolean | Promise<boolean>
+  dragEndMethod?: (ctx: {
+    oldColumn: Column | undefined
+    newColumn: Column | undefined
+    oldIndex: number
+    newIndex: number
+  }) => boolean | Promise<boolean>
 }

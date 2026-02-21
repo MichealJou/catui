@@ -14,6 +14,9 @@
     "@antv/s2": "^2.5.0",
     "@antv/s2-vue": "^2.1.0",
     "@catui/ctable": "workspace:*",
+    "ant-design-vue": "^4.2.6",
+    "element-plus": "^2.13.2",
+    "naive-ui": "^2.43.2",
     "vue": "^3.3.0",
     "vue-router": "^4.0.0"
   },

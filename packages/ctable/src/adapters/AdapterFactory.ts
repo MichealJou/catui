@@ -18,6 +18,8 @@ import type {
 } from './types'
 import { DefaultPaginationAdapter } from './DefaultPaginationAdapter'
 import { AntDesignVuePaginationAdapter } from './AntDesignVuePaginationAdapter'
+import { ElementPlusPaginationAdapter } from './ElementPlusPaginationAdapter'
+import { NaiveUiPaginationAdapter } from './NaiveUiPaginationAdapter'
 import {
   DefaultLoadingAdapter,
   AntDesignVueLoadingAdapter,
@@ -94,15 +96,23 @@ export class AdapterManager {
         )
       }
     } else if (library === 'element-plus') {
-      // TODO: 实现 element-plus 适配器
-      console.warn(
-        '[CTable] element-plus adapter not implemented yet. Using default.'
-      )
+      if (ElementPlusPaginationAdapter.isAvailable()) {
+        console.log('[CTable] Using element-plus pagination adapter')
+        return ElementPlusPaginationAdapter
+      } else {
+        console.warn(
+          '[CTable] element-plus requested but not available. Falling back to default.'
+        )
+      }
     } else if (library === 'naive-ui') {
-      // TODO: 实现 naive-ui 适配器
-      console.warn(
-        '[CTable] naive-ui adapter not implemented yet. Using default.'
-      )
+      if (NaiveUiPaginationAdapter.isAvailable()) {
+        console.log('[CTable] Using naive-ui pagination adapter')
+        return NaiveUiPaginationAdapter
+      } else {
+        console.warn(
+          '[CTable] naive-ui requested but not available. Falling back to default.'
+        )
+      }
     }
 
     // 3. 默认尝试 ant-design-vue
@@ -264,9 +274,15 @@ export function isLibraryAvailable(library: ComponentLibrary): boolean {
         AntDesignVueLoadingAdapter.isAvailable()
       )
     case 'element-plus':
-      return ElementPlusLoadingAdapter.isAvailable()
+      return (
+        ElementPlusPaginationAdapter.isAvailable() ||
+        ElementPlusLoadingAdapter.isAvailable()
+      )
     case 'naive-ui':
-      return NaiveUiLoadingAdapter.isAvailable()
+      return (
+        NaiveUiPaginationAdapter.isAvailable() ||
+        NaiveUiLoadingAdapter.isAvailable()
+      )
     case 'default':
       return true
     default:
@@ -280,6 +296,8 @@ export function isLibraryAvailable(library: ComponentLibrary): boolean {
 export {
   DefaultPaginationAdapter,
   AntDesignVuePaginationAdapter,
+  ElementPlusPaginationAdapter,
+  NaiveUiPaginationAdapter,
   DefaultLoadingAdapter,
   AntDesignVueLoadingAdapter,
   ElementPlusLoadingAdapter,
